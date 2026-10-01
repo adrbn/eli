@@ -4,6 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#050605">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Eli">
 <title>Eli</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23000'/%3E%3Crect x='6' y='8' width='8' height='10' rx='3.5' fill='%2346ff86'/%3E%3Crect x='18' y='8' width='8' height='10' rx='3.5' fill='%2346ff86'/%3E%3Crect x='12' y='22' width='8' height='3' rx='1.5' fill='%2346ff86'/%3E%3C/svg%3E">
 <style>
@@ -284,6 +288,19 @@
     .drop { grid-template-columns: 1fr; }
     .now-title { max-width: 30%; }
     .devlog { bottom: 78px; height: 45vh; }
+  }
+  /* téléphone en portrait : le texte en haut, un gros micro au centre sous le pouce */
+  @media (max-width: 640px) and (orientation: portrait) {
+    .dock { display: grid; grid-template-columns: 1fr 1fr auto 1fr 1fr; grid-template-areas: "chat chat chat chat chat" "faces music mic settings settings"; justify-items: center; row-gap: 8px; bottom: max(12px, env(safe-area-inset-bottom)); padding: 10px 12px 8px; border-radius: 28px; }
+    .chat { grid-area: chat; width: 100%; }
+    .chat input { height: 44px; font-size: 16px; } /* < 16 px : iOS zoome sur le champ */
+    #btn-themes { grid-area: faces; } #btn-music { grid-area: music; } #btn-settings { grid-area: settings; }
+    .icon-btn { height: 48px; min-width: 48px; justify-content: center; }
+    .mic { grid-area: mic; width: 64px; height: 64px; margin-top: -2px; }
+    .mic svg { width: 26px; height: 26px; }
+    .stage { padding: max(16px, env(safe-area-inset-top)) 8px 170px; }
+    .bezel[data-screen="free"] #screen { width: 100vw; height: max(160px, calc(100dvh - var(--chrome) - 30px)); }
+    .devlog { bottom: calc(150px + env(safe-area-inset-bottom)); }
   }
   @media (prefers-reduced-motion: reduce) {
     .dock, .toast, .bezel, .caption, .stage, #screen { transition: none; }
