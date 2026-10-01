@@ -82,6 +82,28 @@ The first run downloads a Piper voice (~60 MB) and the vocal-separation model (~
 > In Safari, **File › Add to Dock** turns Eli into a real app window. Browsers want one click before they play
 > sound: if needed, a "click to wake Eli" banner shows up.
 
+## Native apps
+
+**macOS** (`apps/macos`, no Xcode project, needs the Xcode command-line tools):
+
+```bash
+apps/macos/build.sh          # → apps/macos/build/Eli.app, signed with your Developer ID
+```
+
+`Eli.app` starts the server if nothing answers on the port (and stops it on quit, only if it started it), finds the
+repo when the app sits inside it, otherwise asks for the folder once. Three ways to show Eli, combinable from the
+menu-bar icon: **Window** (the full page), **Widget** (a floating face you drag anywhere, it snaps to edges and
+corners; resize from the corner or with a pinch, double-click opens the window), **Notch** (a pill around the
+MacBook notch that grows on hover). Only one of them speaks, the others mirror it.
+Server output goes to `~/Library/Logs/Eli/server.log`; another port: `defaults write com.adrbn.eli.mac port 5281`.
+Keep `HOST` on `127.0.0.1` or `0.0.0.0`: the app talks to `127.0.0.1`.
+
+**iPhone** (`apps/ios`, needs [`xcodegen`](https://github.com/yonaskolb/XcodeGen)): `cd apps/ios && xcodegen`, open
+`Eli.xcodeproj`, pick your team, run. On first launch, type the address of the computer running Eli (e.g. its
+Tailscale IP, `100.x.y.z:5280`). Its `HOST` in `.env` must be reachable from the phone (`0.0.0.0`, or that IP).
+The app relays the server through `127.0.0.1` on the phone, so the microphone works over plain http.
+Long-press with two fingers to change the address.
+
 ## Controls
 
 | Input | What happens |

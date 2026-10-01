@@ -84,6 +84,29 @@ Le premier lancement télécharge une voix Piper (~60 Mo) et le modèle qui isol
 > Dans Safari, **Fichier › Ajouter au Dock** en fait une vraie fenêtre d'app. Les navigateurs veulent un clic avant de
 > jouer du son : si besoin, un bandeau « Clique pour réveiller Eli » s'affiche.
 
+## Les apps natives
+
+**macOS** (`apps/macos`, sans projet Xcode, il faut les outils en ligne de commande Xcode) :
+
+```bash
+apps/macos/build.sh          # → apps/macos/build/Eli.app, signée avec ton Developer ID
+```
+
+`Eli.app` lance le serveur si rien ne répond sur le port (et l'arrête en quittant, seulement si c'est elle qui l'a
+lancé), trouve le dépôt quand l'app est rangée dedans, sinon demande le dossier une fois. Trois façons d'afficher
+Eli, cumulables depuis l'icône de la barre des menus : **Fenêtre** (la page complète), **Widget** (un visage
+flottant à poser où tu veux, aimanté aux bords et aux coins ; on le redimensionne par le coin ou en pinçant, un
+double-clic ouvre la fenêtre), **Encoche** (une pastille autour de l'encoche du MacBook qui s'agrandit au survol).
+Un seul parle, les autres l'imitent.
+La sortie du serveur va dans `~/Library/Logs/Eli/server.log` ; autre port : `defaults write com.adrbn.eli.mac port 5281`.
+Garde `HOST` sur `127.0.0.1` ou `0.0.0.0` : l'app parle à `127.0.0.1`.
+
+**iPhone** (`apps/ios`, il faut [`xcodegen`](https://github.com/yonaskolb/XcodeGen)) : `cd apps/ios && xcodegen`,
+ouvre `Eli.xcodeproj`, choisis ton équipe, lance. Au premier lancement, tape l'adresse de l'ordinateur où tourne
+Eli (par exemple son IP Tailscale, `100.x.y.z:5280`). Son `HOST` dans `.env` doit être joignable depuis le
+téléphone (`0.0.0.0`, ou cette IP). L'app relaie le serveur par `127.0.0.1` sur le téléphone, ce qui permet au
+micro de marcher en http simple. Appui long à deux doigts pour changer d'adresse.
+
 ## Les commandes
 
 | Geste | Ce qui se passe |
