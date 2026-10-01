@@ -173,7 +173,8 @@ function connect() {
   const es = new EventSource('/events');
   const on = (name, fn) => es.addEventListener(name, (e) => {
     const d = JSON.parse(e.data);
-    if (name !== 'gaze' && !(name === 'stem' && !d.done && !d.error)) devlog.log('info', `← ${name} ${e.data.slice(0, 160)}`);
+    // pas la progression de la voix isolée : un bloc toutes les 5 s noyait le reste
+    if (name !== 'gaze' && !(name === 'stem' && d.total)) devlog.log('info', `← ${name} ${e.data.slice(0, 160)}`);
     fn(d);
   });
   on('hello', (s) => {
@@ -737,6 +738,7 @@ async function sendChat(raw) {
       serverMode = 'think';
       caption(t('« {text} »', { text }), 'you', 8000);
     }
+    devlog.log('info', `→ ${verbatim ? 'dire' : 'chat'} · ${text}`);
     const { turn } = await post(verbatim ? '/brain/speak' : '/brain/chat', { text });
     minTurn = Math.max(minTurn, turn);
   } catch (err) {

@@ -369,6 +369,20 @@ class ServerTest(unittest.TestCase):
             brain.step(-1)
             brain.sing(song(5))
             self.assertEqual([x["id"] for x in brain.played], ["s1", "s5"], "a new song drops what came after")
+            fetches = []
+
+            def slow(song_id):
+                fetches.append(song_id)
+                if len(fetches) == 1:
+                    brain.sing(song(7), announce=True)  # asked again mid-download
+                return b"mp3"
+
+            brain.music.fetch, sent[:] = slow, []
+            brain.sing(song(7), announce=True)
+            self.assertEqual(fetches, ["s7"], "the same song asked during its download doesn't restart it")
+            self.assertEqual([a[1] for a in sent], ["speech", "music"])
+            brain.sing(song(7))
+            self.assertEqual(len(fetches), 2, "once it played, asking again plays it again")
         finally:
             brain.music, brain.face, brain.tts, brain.played, brain.place = saved
 
@@ -430,6 +444,8 @@ class ServerTest(unittest.TestCase):
         self.assertNotIn("gsk_abcdef123456", line["msg"])
         with urllib.request.urlopen(self.base + f"/api/logs?after={line['n']}") as r:
             self.assertNotIn(line["n"], [l["n"] for l in json.loads(r.read())["lines"]])
+        with urllib.request.urlopen(self.base + f"/api/logs?after={line['n']}&boot=another") as r:
+            self.assertIn(line["n"], [l["n"] for l in json.loads(r.read())["lines"]], "another server's count: from 0")
 
     def test_song_genre_dresses_eli(self):
         code, meta = self.post("/clip?kind=music&name=song.wav", tiny_wav(), "audio/wav", {"X-Genre": "Tropical%20House"})

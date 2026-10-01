@@ -3,7 +3,7 @@
 const MAX = 300;
 const SECRET = /([?&](?:t|s|p|u|token|key|apikey|password)=)[^&\s"]+|\b(gsk_|sk-)[\w-]+/gi;
 const lines = [];
-let list = null, after = 0, timer = 0;
+let list = null, after = 0, boot = '', timer = 0, polling = null;
 
 export const redact = (text) => String(text).replace(SECRET, (_, q, k) => `${q || k}•••`);
 const fmt = (x) => (x instanceof Error ? `${x.name}: ${x.message}` : typeof x === 'object' ? safeJson(x) : String(x));
@@ -36,11 +36,15 @@ function show(line) {
 }
 
 const LEVEL = { WARNING: 'warn', ERROR: 'error', CRITICAL: 'error' };
-async function poll() {
+// Un seul appel à la fois : deux appels partis avec le même `after` recopiaient les mêmes lignes.
+const poll = () => (polling ??= pull().finally(() => { polling = null }));
+async function pull() {
   try {
-    const { lines: got = [] } = await fetch(`/api/logs?after=${after}`).then((r) => r.json());
-    for (const l of got) {
-      after = Math.max(after, l.n);
+    const res = await fetch(`/api/logs?after=${after}&boot=${boot}`).then((r) => r.json());
+    if (res.boot && res.boot !== boot) [boot, after] = [res.boot, 0]; // serveur relancé : il recompte depuis 1
+    for (const l of res.lines || []) {
+      if (l.n <= after) continue;
+      after = l.n;
       log(LEVEL[l.level] || 'info', `${l.name.replace(/^eli\./, '')} · ${l.msg}`, 'srv', l.t * 1000);
     }
   } catch {

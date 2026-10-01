@@ -280,6 +280,7 @@ class Brain:
         self.lock = threading.Lock()
         self.turn = 0
         self.song = 0
+        self.fetching: tuple[str, int] | None = None  # (song id, ticket) being downloaded
         self.played: list[dict] = []  # the songs sung, for previous / next
         self.place = -1  # the latest song asked for: only a newer one or a real stop drops it (not a new sentence)
         self.logged = 0  # last turn written to the history
@@ -506,14 +507,24 @@ class Brain:
         """Streams a library song to the face, which sings it. The download takes seconds: talking over it or cutting
         his speech (Esc) must not lose it, only a real stop or another song does. Sent as turn 0 so no turn outdates it.
         announce: he names it first, which also covers the seconds the isolated voice needs to start."""
-        ticket = self.drop_song()
+        with self.lock:
+            if self.fetching == (song["id"], self.song):
+                return  # asked again while it downloads: that download plays it, restarting would double the wait
+            self.song += 1
+            ticket = self.song
+            self.fetching = (song["id"], ticket)
         if remember:
             with self.lock:
                 self.played = [*self.played[: self.place + 1], song][-HISTORY:]
                 self.place = len(self.played) - 1
         if announce:  # said during the download (~7 s through a VPN): he answers at once, the song follows it
             self._announce(song)
-        data = self.music.fetch(song["id"])
+        try:
+            data = self.music.fetch(song["id"])
+        finally:
+            with self.lock:
+                if self.fetching == (song["id"], ticket):
+                    self.fetching = None
         if ticket != self.song:
             return
         title = f"{song['artist']} – {song['title']}".strip(" –")

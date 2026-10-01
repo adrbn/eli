@@ -75,6 +75,7 @@ mimetypes.add_type("audio/wav", ".wav")  # otherwise the brain's clips are store
 
 ROOT = Path(__file__).resolve().parent.parent
 VERSION = devlog.version(ROOT)
+BOOT = uuid.uuid4().hex[:8]  # log lines are numbered from 1 again after a restart
 WEB = ROOT / "web"
 CACHE = ROOT / "cache"
 MAX_AUDIO = 150 * 1024 * 1024
@@ -415,8 +416,12 @@ class Handler(BaseHTTPRequestHandler):
             mem = self.app.brain.memory
             return self._json(200, {"notes": mem.notes(), "messages": len(mem.recent())})
         if path == "/api/logs":  # developer mode: the log lines after ?after=N, secrets stripped
-            after = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("after", ["0"])[0]
-            return self._json(200, {"lines": RING.after(int(after) if after.isdigit() else 0), "version": VERSION})
+            q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query)
+            after = q.get("after", ["0"])[0]
+            if q.get("boot", [BOOT])[0] != BOOT:  # the page counted another server's lines: start over
+                after = "0"
+            return self._json(200, {"lines": RING.after(int(after) if after.isdigit() else 0), "version": VERSION,
+                                    "boot": BOOT})
         if path == "/api/music":
             return self._json(200, self.app.music.status())
         if path == "/api/music/songs":  # the picker: ?q=… searches, nothing = a random handful
