@@ -18,6 +18,7 @@ Rôle 2 · le cerveau (brain.py), qui ne parle à l'écran que par ce protocole 
   POST /brain/reset   (?all=1 : le carnet aussi)    oublie la conversation
   POST /brain/intro                                 les présentations : Eli pose quelques questions pour te connaître
   POST /brain/meow                                  un miaou (visages de chat)
+  POST /brain/brief                                 le point du matin : date, météo (BRIEF_CITY), un mot pour toi
   POST /brain/hotword  corps = WAV 16 kHz mono      écoute permanente : est-ce « Eli, … » ? (voir hotword.py)
   POST /music/setup  {"url","user","password"}      accès Navidrome (vérifié, seul un jeton est gardé) ; /music/forget
   GET  /api/status, /api/voices, /api/memory        état, voix au choix (POST /voice {"id"}), souvenirs
@@ -81,6 +82,7 @@ DEFAULTS = {
     "GROQ_STT_MODEL": "whisper-large-v3-turbo",
     "LLM_URL": "",  # un LLM local au format OpenAI (mlx_lm.server, Ollama…) ; vide = Groq
     "LLM_API_KEY": "",
+    "BRIEF_CITY": "",  # ville de la météo du point du matin (Open-Meteo), vide = sans météo
     "ALLOWED_HOSTS": "",  # noms servis en plus des IP et de localhost (ex. eli.tailnet.ts.net derrière tailscale serve)
     "NAVIDROME_URL": "", "NAVIDROME_USER": "", "NAVIDROME_PASSWORD": "",  # ou le formulaire Réglages → Musique
     "LLM_MODEL": "openai/gpt-oss-120b",
@@ -427,6 +429,7 @@ class Handler(BaseHTTPRequestHandler):
             "/brain/reset": self._post_reset,
             "/brain/intro": self._post_intro,
             "/brain/meow": self._post_meow,
+            "/brain/brief": self._post_brief,
             "/brain/hotword": self._post_hotword,
             "/music/setup": self._post_music_setup,
             "/music/forget": self._post_music_forget,
@@ -575,6 +578,9 @@ class Handler(BaseHTTPRequestHandler):
 
     def _post_intro(self, _query: dict) -> None:
         self._json(202, {"ok": True, "turn": self.app.brain.intro()})
+
+    def _post_brief(self, _query: dict) -> None:
+        self._json(202, {"ok": True, "turn": self.app.brain.brief()})
 
     def _post_meow(self, _query: dict) -> None:
         self._json(202, {"ok": True, "turn": self.app.brain.start("meow", None)})

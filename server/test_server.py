@@ -106,7 +106,7 @@ class ServerTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cfg = load_config()
-        cfg.update(HOST="127.0.0.1", GROQ_API_KEY="", FACE_URL="", MEMORY_DIR="")  # jamais la vraie mémoire
+        cfg.update(HOST="127.0.0.1", GROQ_API_KEY="", LLM_URL="", BRIEF_CITY="", FACE_URL="", MEMORY_DIR="")  # jamais la vraie mémoire
         cls.server = make_server(cfg, port=0, tts=FakeTTS(), with_stems=False)
         cls.base = f"http://127.0.0.1:{cls.server.server_address[1]}"
         cls.tmp = tempfile.TemporaryDirectory()  # jamais le vrai local/navidrome.json
@@ -239,6 +239,11 @@ class ServerTest(unittest.TestCase):
         self.assertEqual(code, 400)  # injoignable : rien n'est enregistré
         self.assertFalse(Path(self.tmp.name, "navidrome.json").exists())
         self.assertEqual(self.post("/music/forget")[1]["configured"], False)
+
+    def test_brief_runs_a_turn(self):
+        code, body = self.post("/brain/brief")
+        self.assertEqual(code, 202)
+        self.wait_for("clip", lambda d: d["turn"] == body["turn"] and "cerveau" in d["text"])  # sans LLM, il le dit
 
     def test_human_stop_cancels_the_turn(self):
         self.assertEqual(self.post("/stop")[0], 200)

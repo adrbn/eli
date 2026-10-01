@@ -47,6 +47,7 @@ let settings = {
   mouse: saved.mouse !== false,
   snore: saved.snore !== false,
   hotword: saved.hotword === true,
+  brief: saved.brief !== false,
 };
 const savedCustom = store.get('custom', {});
 setCustom({
@@ -158,6 +159,7 @@ function connect() {
     renderInfo();
     renderStatus();
     maybeIntro();
+    maybeBrief();
   });
   on('clip', onClip);
   on('music', renderMusic);
@@ -196,6 +198,15 @@ function maybeIntro() {
     store.set('met', true);
     if (!m.notes && !m.messages) startIntro();
   }).catch(report);
+}
+
+// Le point du matin : une fois par jour, entre 5 h et midi, quand Eli se réveille et peut parler.
+function maybeBrief() {
+  const now = new Date(), day = now.toDateString();
+  if (!settings.brief || passive || MIRROR || !player.ready || !store.get('met', false)) return;
+  if (now.getHours() < 5 || now.getHours() >= 12 || store.get('briefDay', '') === day) return;
+  store.set('briefDay', day);
+  post('/brain/brief').then(({ turn }) => { minTurn = Math.max(minTurn, turn) }, report);
 }
 
 function startIntro() {
@@ -294,7 +305,7 @@ function bindCustom() {
 }
 
 function bindSettings() {
-  const lead = $('#s-lead'), leadOut = $('#s-lead-out'), volume = $('#s-volume'), captions = $('#s-captions'), mouse = $('#s-mouse'), snore = $('#s-snore'), hot = $('#s-hotword');
+  const lead = $('#s-lead'), leadOut = $('#s-lead-out'), volume = $('#s-volume'), captions = $('#s-captions'), mouse = $('#s-mouse'), snore = $('#s-snore'), hot = $('#s-hotword'), brief = $('#s-brief');
   const update = (patch) => {
     settings = { ...settings, ...patch };
     store.set('settings', settings);
@@ -307,6 +318,7 @@ function bindSettings() {
   mouse.checked = settings.mouse;
   snore.checked = settings.snore;
   hot.checked = settings.hotword;
+  brief.checked = settings.brief;
   update({});
   if (settings.hotword && !MIRROR) hotword(true);
   hot.addEventListener('change', () => {
@@ -314,6 +326,7 @@ function bindSettings() {
     hotword(hot.checked);
   });
   snore.addEventListener('change', () => update({ snore: snore.checked }));
+  brief.addEventListener('change', () => update({ brief: brief.checked }));
   lead.addEventListener('input', () => update({ lead: Number(lead.value) }));
   volume.addEventListener('input', () => update({ volume: Number(volume.value) }));
   captions.addEventListener('change', () => {
@@ -646,13 +659,15 @@ function fit(canvas) {
   }
 }
 
-let last = performance.now();
+let last = performance.now(), wasAsleep = false;
 function frame(now) {
   const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
   last = now;
   const f = face.update(dt, sense(now));
   if (f.gesture === 'meow' && !passive && !MIRROR && player.ready) post('/brain/meow').catch(report);
   sleeper.update(f, settings.snore, face.cat);
+  if (wasAsleep && !f.asleep) maybeBrief();
+  wasAsleep = f.asleep;
   document.body.classList.toggle('asleep', f.asleep);
   fit(el.screen);
   if (now - miniAt > 200) {
@@ -673,7 +688,7 @@ function frame(now) {
 function unlockAudio() {
   if (passive) takeOver();
   if (player.ready) return;
-  player.unlock().then(() => { el.wake.hidden = player.ready }, report);
+  player.unlock().then(() => { el.wake.hidden = player.ready; maybeBrief() }, report);
 }
 
 const isField = (target) => target instanceof Element && target.matches('input, textarea, select');

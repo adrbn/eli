@@ -5,6 +5,7 @@ le fera avec l'ESP32 : changer FACE_URL suffira.
 """
 from __future__ import annotations
 
+import datetime
 import json
 import logging
 import random
@@ -17,6 +18,7 @@ import uuid
 from pathlib import Path
 from typing import Callable, Iterator
 
+import brief
 import meow
 import piper_text
 import tags
@@ -244,6 +246,10 @@ class Brain:
         self.memory.add("(C'est notre première rencontre.)", INTRO_GREETING)
         return self.start("speak", INTRO_GREETING)
 
+    def brief(self) -> int:
+        """Le point du matin (voir brief.py)."""
+        return self.start("brief", None)
+
     def has_llm(self) -> bool:
         return bool(self.cfg.get("LLM_URL") or self.cfg.get("GROQ_API_KEY"))
 
@@ -276,7 +282,10 @@ class Brain:
                 self._meow(turn)
                 return
             self.face.state("think")
-            text = payload if kind == "chat" else self._hear(turn, payload)
+            if kind == "brief":
+                text = brief.prompt(datetime.datetime.now(), self.cfg.get("BRIEF_CITY", ""))
+            else:
+                text = payload if kind == "chat" else self._hear(turn, payload)
             if text and self.alive(turn):
                 self._answer(turn, text)
         except Exception as exc:  # une panne ne doit jamais laisser le visage figé en « réflexion »

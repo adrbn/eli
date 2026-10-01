@@ -12,8 +12,10 @@ if [ ! -f "$VOICE" ]; then
   curl -fL "$base/fr_FR-siwis-medium.onnx" -o "$VOICE.part" && mv "$VOICE.part" "$VOICE"
 fi
 
+# Le chant : seul le modèle par défaut se télécharge. SEPARATOR_MODEL=off dans .env = pas de chant, rien à télécharger.
 SEP=voices/Kim_Vocal_2.onnx
-if [ ! -f "$SEP" ]; then
+WANT="${SEPARATOR_MODEL:-$(sed -n 's/^SEPARATOR_MODEL=//p' .env 2>/dev/null | tail -1)}"
+if [ "${WANT:-$SEP}" = "$SEP" ] && [ ! -f "$SEP" ]; then
   echo "Téléchargement du modèle qui isole la voix des morceaux (~65 Mo)…"
   curl -fL https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/Kim_Vocal_2.onnx -o "$SEP.part" && mv "$SEP.part" "$SEP"
 fi

@@ -229,7 +229,7 @@ cross-site requests are already refused.
 
 ## Configuration
 
-Everything lives in `.env` (template: [`.env.example`](.env.example)). Only `GROQ_API_KEY` is required.
+Everything lives in `.env` (template: [`.env.example`](.env.example)). Eli needs one brain: `GROQ_API_KEY` (free tier, your own key) or `LLM_URL`.
 
 | Variable | Default | What it does |
 |---|---|---|
@@ -238,10 +238,14 @@ Everything lives in `.env` (template: [`.env.example`](.env.example)). Only `GRO
 | `ECHO_URL`, `ECHO_API_KEY` | | your own OpenAI-compatible `/v1/audio/transcriptions` server (e.g. Parakeet at home) |
 | `STT_LANGUAGE` | `fr` | transcription language |
 | `LLM_MODEL`, `LLM_FALLBACK_MODEL` | `openai/gpt-oss-120b`, `openai/gpt-oss-20b` | Groq models |
+| `LLM_URL`, `LLM_API_KEY` | | a local OpenAI-compatible brain instead (mlx_lm.server, Ollama…) |
 | `TTS`, `SAY_VOICE` | `piper`, `Thomas` | starting voice; switch live in Settings |
 | `SEPARATOR_MODEL` | `voices/Kim_Vocal_2.onnx` | the vocal-isolation model |
 | `HOST`, `PORT` | `127.0.0.1`, `5280` | where the server listens |
 | `FACE_URL` | *(this server)* | where the brain sends clips: later, the ESP32 |
+| `BRIEF_CITY` | | city for the morning brief's weather (Open-Meteo, no key) |
+| `ALLOWED_HOSTS` | | host names served besides IPs and localhost (e.g. behind `tailscale serve`) |
+| `NAVIDROME_URL`, `_USER`, `_PASSWORD` | | your music library; easier from Settings → Music |
 
 Eli's personality is `DEFAULT_PERSONA` in `server/brain.py`; drop a `persona.txt` at the repo root to replace it.
 
@@ -396,3 +400,9 @@ The README art is generated from the face code itself: `python3 assets/make_svgs
 ## License
 
 [MIT](LICENSE) © 2026 adrbn
+
+Downloaded at first run, under their own terms: the [Piper](https://github.com/rhasspy/piper) Siwis voice (SIWIS
+French Speech Synthesis Database, CC BY 4.0), the [Vosk](https://alphacephei.com/vosk/models) small French model
+(Apache 2.0), and UVR's Kim_Vocal_2 vocal-isolation model (no license stated by its authors; set
+`SEPARATOR_MODEL=off` to skip it). Weather data by [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0), free for
+non-commercial use.

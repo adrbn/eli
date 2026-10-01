@@ -236,7 +236,7 @@ les requêtes venues d'autres sites sont déjà refusés.
 
 ## Réglages
 
-Tout est dans `.env` (modèle : [`.env.example`](.env.example)). Seule `GROQ_API_KEY` est obligatoire.
+Tout est dans `.env` (modèle : [`.env.example`](.env.example)). Il faut un cerveau : `GROQ_API_KEY` (offre gratuite, ta propre clé) ou `LLM_URL`.
 
 | Variable | Par défaut | Rôle |
 |---|---|---|
@@ -245,10 +245,14 @@ Tout est dans `.env` (modèle : [`.env.example`](.env.example)). Seule `GROQ_API
 | `ECHO_URL`, `ECHO_API_KEY` | | ton propre serveur `/v1/audio/transcriptions` au format OpenAI (Parakeet à la maison, par ex.) |
 | `STT_LANGUAGE` | `fr` | langue de la transcription |
 | `LLM_MODEL`, `LLM_FALLBACK_MODEL` | `openai/gpt-oss-120b`, `openai/gpt-oss-20b` | modèles Groq |
+| `LLM_URL`, `LLM_API_KEY` | | un cerveau local compatible OpenAI à la place (mlx_lm.server, Ollama…) |
 | `TTS`, `SAY_VOICE` | `piper`, `Thomas` | voix de départ ; elle se change à chaud dans Réglages |
 | `SEPARATOR_MODEL` | `voices/Kim_Vocal_2.onnx` | le modèle qui isole la voix |
 | `HOST`, `PORT` | `127.0.0.1`, `5280` | où le serveur écoute |
 | `FACE_URL` | *(ce serveur)* | où le cerveau envoie ses clips : plus tard, l'ESP32 |
+| `BRIEF_CITY` | | ville de la météo du point du matin (Open-Meteo, sans clé) |
+| `ALLOWED_HOSTS` | | noms servis en plus des IP et de localhost (ex. derrière `tailscale serve`) |
+| `NAVIDROME_URL`, `_USER`, `_PASSWORD` | | ta bibliothèque musicale ; plus simple depuis Réglages → Musique |
 
 La personnalité d'Eli est dans `DEFAULT_PERSONA` (`server/brain.py`) ; crée un `persona.txt` à la racine pour la remplacer.
 
@@ -408,3 +412,9 @@ Les illustrations de ce README sont générées à partir du code des visages : 
 ## Licence
 
 [MIT](LICENSE) © 2026 adrbn
+
+Téléchargés au premier lancement, sous leurs propres conditions : la voix Siwis de [Piper](https://github.com/rhasspy/piper)
+(SIWIS French Speech Synthesis Database, CC BY 4.0), le petit modèle français de [Vosk](https://alphacephei.com/vosk/models)
+(Apache 2.0), et le modèle d'isolation de voix Kim_Vocal_2 d'UVR (aucune licence indiquée par ses auteurs ;
+`SEPARATOR_MODEL=off` pour s'en passer). Météo : [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0), gratuite pour
+un usage non commercial.
