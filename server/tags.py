@@ -24,7 +24,9 @@ HINT = {
         "(ou [musique: artiste] ou [musique: genre]) et annonce-le en une phrase courte. Mets la balise même si tu ne "
         "connais pas ce morceau ou cette collaboration : c'est sa bibliothèque qui décide, pas ta mémoire. Tu parles "
         "avant la recherche : ne dis jamais que tu ne le trouves pas ou qu'il n'existe pas, annonce juste que tu le "
-        "lances (si la bibliothèque ne l'a pas, on le lui dira après)."
+        "lances (si la bibliothèque ne l'a pas, on le lui dira après). Tu ne sais pas encore quel morceau sortira et "
+        "tu l'annonceras toi-même juste avant : dis seulement quelques mots de réaction, à varier à chaque fois (pas "
+        "toujours « tout de suite »), sans redire le titre."
     ),
     "en": (
         "Start each sentence that expresses an emotion with one mood tag, a single one per sentence, among: "
@@ -34,7 +36,9 @@ HINT = {
         "(or [music: artist] or [music: genre]) and announce it in one short sentence. Add the tag even if you don't "
         "know that song or collaboration: their library decides, not your memory. You speak before the search: never "
         "say you can't find it or that it doesn't exist, just announce you're putting it on (if the library lacks it, "
-        "they'll be told afterwards)."
+        "they'll be told afterwards). You don't know yet which song will come out, and you'll name it yourself right "
+        "before it starts: just react in a few words, different each time (not always \"right away\"), without "
+        "repeating the title."
     ),
 }
 

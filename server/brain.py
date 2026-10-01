@@ -492,12 +492,12 @@ class Brain:
             return
         self.publish("brain", {"stage": "music", "text": query})
         try:
-            song = self.music.find(query)
+            song = self.music.find(query, avoid={s['id'] for s in self.played[-8:]})  # "more Adele": another one
             if not song:
                 self._say(turn, self.line("not_found"), [], "gêne")
                 return
             self.publish("brain", {"stage": "fetch", "text": f"{song['artist']} – {song['title']}".strip(" –")})
-            self.sing(song)
+            self.sing(song, announce=True)  # his own sentence came before the search: now he names what it found
         except MusicError as exc:
             self.publish("brain", {"stage": "error", "error": str(exc)})
             self._say(turn, self.line("music_down"), [], "tristesse")
@@ -505,7 +505,7 @@ class Brain:
     def sing(self, song: dict, announce: bool = False, remember: bool = True) -> None:
         """Streams a library song to the face, which sings it. The download takes seconds: talking over it or cutting
         his speech (Esc) must not lose it, only a real stop or another song does. Sent as turn 0 so no turn outdates it.
-        announce: he says its name first (the picker; the LLM has already said something)."""
+        announce: he names it first, which also covers the seconds the isolated voice needs to start."""
         ticket = self.drop_song()
         if remember:
             with self.lock:

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import random
 import time
 import re
 import secrets
@@ -17,6 +18,7 @@ from pathlib import Path
 
 CLIENT = "eli"
 JOIN = re.compile(r"\s+(?:et|and|&|x|feat\.?|ft\.?|avec|with|featuring)\s+", re.I)  # "A et B", "A feat. B"…
+NAMES = re.compile(r"\s*(?:•|,|&|/|;)\s*|\s+(?:feat\.?|ft\.?|x|et|and|with|avec)\s+")  # "A • B", "A feat. B": one name each
 BITRATE = 128  # kb/s: a 4 min song ≈ 4 MB, reasonable even through a slow VPN
 
 
@@ -113,17 +115,27 @@ class Navidrome:
         self.file.unlink(missing_ok=True)
         self.auth = None
 
-    def find(self, query: str) -> dict | None:
-        """The best song for this request: {id, title, artist, genre}, or None."""
+    def find(self, query: str, avoid: frozenset[str] | set[str] = frozenset()) -> dict | None:
+        """The best song for this request: {id, title, artist, genre}, or None. avoid: ids just played."""
         if not self.auth:
             raise MusicError("no music library configured")
         bare = re.sub(r"\s+", " ", JOIN.sub(" ", query)).strip()  # Navidrome needs every word to match: drop "et", "feat"…
-        songs = self._search(query, 10) or (bare != query.strip() and self._search(bare, 10)) or self._duet(query)
+        songs = self._search(query, 30) or (bare != query.strip() and self._search(bare, 10)) or self._duet(query)
         if not songs:  # "play some jazz": not a title, maybe a genre
             songs = self._call(self.auth, "getRandomSongs", size=1, genre=query.strip().title()).get("randomSongs", {}).get("song", [])
         if not songs:
             return None
-        return self._song(songs[0])
+        return self._song(self._pick(query, songs, avoid))
+
+    @staticmethod
+    def _pick(query: str, songs: list[dict], avoid: frozenset[str] | set[str] = frozenset()) -> dict:
+        """Navidrome's first hit isn't always it ("Adele" → a duet featuring an Adèle): an artist named exactly (accents
+        count) wins, and asking for that artist again gives another of their songs."""
+        q = query.strip().casefold()
+        exact = [s for s in songs if q in NAMES.split((s.get("artist") or "").casefold())]
+        if not exact:
+            return songs[0]
+        return random.choice([s for s in exact if s.get("id") not in avoid] or exact)
 
     def _duet(self, query: str) -> list[dict]:
         """"A et B": the server files a duet under one name only; prefer a hit that mentions the other one."""
@@ -170,4 +182,9 @@ if __name__ == "__main__":
     fake._search = lambda q, n, real=fake._search: [{"id": "w", "artist": "B • A", "title": "W"}] if q == "A B" else real(q, n)
     assert fake.find("A et B")["id"] == "w" and fake.find("A feat. B")["id"] == "w"
     assert fake.find("Arijit Singh et Martin Garrix")["id"] == "2" and fake.find("Martin Garrix")["id"] == "3"
+    hits = [{"id": "k", "artist": "Kyana • Adèle Castillon", "title": "Le masque"}, {"id": "a1", "artist": "Adele", "title": "Skyfall"},
+            {"id": "a2", "artist": "Daniel Merriweather • Adele", "title": "Water"}]
+    assert {Navidrome._pick("Adele", hits)["id"] for _ in range(40)} == {"a1", "a2"}, "the right Adele, and not always the same"
+    assert Navidrome._pick("adele", hits, avoid={"a1"})["id"] == "a2"
+    assert Navidrome._pick("Adèle Castillon", hits)["id"] == "k" and Navidrome._pick("Le masque", hits)["id"] == "k"
     print("ok")

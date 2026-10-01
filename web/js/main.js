@@ -590,8 +590,8 @@ function stepSong(dir) {
   stopAll().then(() => post(`/music/${dir}`)).catch(report);
   note(t('Je cherche le morceau…'));
 }
-$('#now-prev').addEventListener('click', () => stepSong('prev'));
-$('#now-next').addEventListener('click', () => stepSong('next'));
+$('#now-back').addEventListener('click', () => stepSong('prev'));
+$('#now-skip').addEventListener('click', () => stepSong('next'));
 el.nowSeek.addEventListener('input', () => { seeking = true });
 el.nowSeek.addEventListener('change', () => {
   seeking = false;
