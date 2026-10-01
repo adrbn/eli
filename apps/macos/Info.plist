@@ -6,6 +6,10 @@
 	<string>Eli</string>
 	<key>CFBundleDisplayName</key>
 	<string>Eli</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
+	<key>CFBundleAllowMixedLocalizations</key>
+	<true/>
 	<key>CFBundleExecutable</key>
 	<string>Eli</string>
 	<key>CFBundleIdentifier</key>

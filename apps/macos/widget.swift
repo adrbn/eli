@@ -4,18 +4,13 @@ import AppKit
 import WebKit
 
 @MainActor
-final class WidgetPanel: NSPanel {
+final class WidgetPanel: EliPanel {
     static let margin: CGFloat = 16, pull: CGFloat = 80, minWidth: CGFloat = 160, maxWidth: CGFloat = 640
-    let webView: WKWebView
 
-    init(webView: WKWebView, allSpaces: Bool, onDoubleClick: @escaping () -> Void) {
-        self.webView = webView
-        super.init(contentRect: Self.savedFrame(), styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+    init(webView: WKWebView, allSpaces: Bool, menu: NSMenu, onDoubleClick: @escaping () -> Void) {
+        super.init(frame: Self.savedFrame(), menu: menu)
         level = .floating
         setAllSpaces(allSpaces)
-        hidesOnDeactivate = false
-        isOpaque = false
-        backgroundColor = .clear
         hasShadow = true
 
         let root = NSView()
@@ -24,13 +19,11 @@ final class WidgetPanel: NSPanel {
         root.layer?.cornerRadius = 20
         root.layer?.masksToBounds = true
         contentView = root
-        let handle = DragView(frame: root.bounds)  // above the page: the bare face has no UI to click
+        let handle = DragView(frame: root.bounds)  // above the page: in widget layout the face has no UI to click
+        handle.autoresizingMask = [.width, .height]
         handle.onDoubleClick = onDoubleClick
-        for view in [webView, handle] {
-            view.frame = root.bounds
-            view.autoresizingMask = [.width, .height]
-            root.addSubview(view)
-        }
+        root.addSubview(handle)
+        root.embed(webView)
         orderFrontRegardless()
     }
 
@@ -59,8 +52,8 @@ final class WidgetPanel: NSPanel {
         if target.minY - area.minY < pull { target.origin.y = area.minY + m }
         else if area.maxY - target.maxY < pull { target.origin.y = area.maxY - m - target.height }
         NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.35
-            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.3, 1.3, 0.5, 1)  // slight overshoot
+            context.duration = 0.3
+            context.timingFunction = EliPanel.easeOut
             animator().setFrame(target, display: true)
         }
         defaults.set(NSStringFromRect(target), forKey: "widget.frame.\(screen.localizedName)")

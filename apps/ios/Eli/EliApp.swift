@@ -115,7 +115,7 @@ struct FaceView: UIViewRepresentable {
         weak var web: WKWebView?
         private var relay: Relay?
         private var relayWasReady = false
-        private var local: URL { URL(string: "http://127.0.0.1:\(face.port)/")! }
+        private var local: URL { URL(string: "http://127.0.0.1:\(face.port)/?app=ios")! }  // the page drops its bezel and talks to the app
 
         init(_ face: FaceView) { self.face = face }
 

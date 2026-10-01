@@ -1,87 +1,128 @@
-// Notch mode: Eli lives in a black pill around the MacBook notch and drops down into a bigger face on hover.
+// Notch: Eli sits in a black pill around the MacBook notch, its face in the left ear, and drops down into a bigger
+// panel when the pointer rests there. Screens without a notch get a fake 200 pt one at the top center.
 import AppKit
 import WebKit
 
 @MainActor
-final class NotchPanel: NSPanel {
-    let webView: WKWebView
+final class NotchPanel: EliPanel {
+    var hold = false  // the page is busy (typing): stay open until a click outside or Esc
+    private let webView: WKWebView
     private let box = NSView()
     private var expanded = false
+    private var armed = true  // after a forced collapse, the pointer must leave before the pill opens again
+    private var since: TimeInterval?  // since when the pointer asks for the other state
+    private var shape: (compact: NSRect, open: NSRect, notch: CGFloat, ear: CGFloat, h: CGFloat)?
+    private var timer: Timer?
+    private var clicks: Any?
 
-    init(webView: WKWebView) {
+    init(webView: WKWebView, menu: NSMenu) {
         self.webView = webView
-        super.init(contentRect: .zero, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        super.init(frame: .zero, menu: menu)
         level = NSWindow.Level(rawValue: NSWindow.Level.mainMenu.rawValue + 3)  // above the menu bar
         collectionBehavior = [.canJoinAllSpaces, .stationary, .fullScreenAuxiliary, .ignoresCycle]
-        hidesOnDeactivate = false
-        isOpaque = false
-        backgroundColor = .clear
         hasShadow = false
         isMovable = false
-
-        let root = HoverView()
-        root.onHover = { [weak self] in self?.expanded = $0; self?.place(animated: true) }
-        contentView = root
         box.wantsLayer = true
         box.layer?.backgroundColor = NSColor.black.cgColor
         box.layer?.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner]  // bottom corners: the top is flush with the bezel
         box.layer?.masksToBounds = true
-        box.autoresizingMask = [.width, .height]
-        root.addSubview(box)
-        box.addSubview(webView)
-        place(animated: false)
+        contentView = box
+        box.embed(webView)
+        screensChanged()
         NotificationCenter.default.addObserver(self, selector: #selector(screensChanged),
                                                name: NSApplication.didChangeScreenParametersNotification, object: nil)
+        // Polling with hysteresis: a tracking area riding an animated frame fired enter/exit in a loop.
+        timer = Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated { self?.track() }
+        }
+        clicks = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDown) { [weak self] _ in
+            MainActor.assumeIsolated { self?.collapse() }
+        }
         orderFrontRegardless()
     }
 
+    override var canBecomeKey: Bool { true }  // the page's text field takes typing, the app stays in the background
+
     override func constrainFrameRect(_ frameRect: NSRect, to screen: NSScreen?) -> NSRect { frameRect }  // may cover the menu bar
 
-    @objc private func screensChanged() { place(animated: false) }
+    override func sendEvent(_ event: NSEvent) {
+        if event.type == .keyDown && event.keyCode == 53 { collapse() }  // Esc
+        super.sendEvent(event)
+    }
 
-    /// The built-in screen and its notch, or a fake notch at the top center of a screen without one.
-    private func notch() -> (screen: NSRect, notch: NSRect)? {
-        guard let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.screens.first else { return nil }
-        let frame = screen.frame
-        if let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
-            let height = screen.safeAreaInsets.top
-            return (frame, NSRect(x: frame.minX + left.width, y: frame.maxY - height,
-                                  width: frame.width - left.width - right.width, height: height))
+    func layout() {
+        guard let shape else { return }
+        if expanded {
+            webView.host("layout", "notch-open", ["notch": shape.notch, "top": shape.h])
+        } else {
+            webView.host("layout", "notch", ["notch": shape.notch, "ear": shape.ear, "h": shape.h])
         }
-        let height = NSStatusBar.system.thickness
-        return (frame, NSRect(x: frame.midX - 90, y: frame.maxY - height, width: 180, height: height))
+    }
+
+    func dismiss() {
+        timer?.invalidate()
+        clicks.map(NSEvent.removeMonitor)
+        NotificationCenter.default.removeObserver(self)
+        orderOut(nil)
+    }
+
+    /// The built-in screen and its notch, or a fake one; the pill and the open panel hang from the top around it.
+    @objc private func screensChanged() {
+        guard let screen = NSScreen.screens.first(where: { $0.safeAreaInsets.top > 0 }) ?? NSScreen.screens.first else { return }
+        let frame = screen.frame
+        var notch = NSRect(x: frame.midX - 100, y: 0, width: 200, height: NSStatusBar.system.thickness)
+        if let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
+            notch = NSRect(x: frame.minX + left.width, y: 0, width: frame.width - left.width - right.width, height: screen.safeAreaInsets.top)
+        }
+        let h = notch.height, ear = 2 * (h - 8) + 20  // a 2:1 face of height h - 8 fits in the left ear
+        func hanging(_ width: CGFloat, _ height: CGFloat) -> NSRect {
+            NSRect(x: notch.midX - width / 2, y: frame.maxY - height, width: width, height: height)
+        }
+        shape = (hanging(notch.width + 2 * ear, h), hanging(max(560, notch.width + 2 * ear), h + 168), notch.width, ear, h)
+        place(animated: false)
     }
 
     private func place(animated: Bool) {
-        guard let (screen, notch) = notch() else { return }
-        let ear = notch.height  // the pill sticks out by one square on each side; the left one shows the face
-        let size = expanded
-            ? NSSize(width: max(360, notch.width + 2 * ear), height: notch.height + 170)
-            : NSSize(width: notch.width + 2 * ear, height: notch.height)
-        let frame = NSRect(x: notch.midX - size.width / 2, y: screen.maxY - size.height, width: size.width, height: size.height)
-        let face = expanded
-            ? NSRect(x: 16, y: 12, width: size.width - 32, height: size.height - notch.height - 16)
-            : NSRect(x: 6, y: 4, width: ear - 8, height: ear - 8)
-        box.layer?.cornerRadius = expanded ? 28 : ear / 2
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = animated ? 0.4 : 0
-            context.timingFunction = CAMediaTimingFunction(controlPoints: 0.3, 1.35, 0.5, 1)  // slight overshoot, spring-like
-            animator().setFrame(frame, display: true)
-            webView.animator().frame = face
+        guard let shape else { return }
+        let target = expanded ? shape.open : shape.compact
+        box.layer?.cornerRadius = expanded ? 26 : shape.h / 2
+        if animated {
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.28
+                context.timingFunction = EliPanel.easeOut
+                animator().setFrame(target, display: true)
+            }
+        } else {
+            setFrame(target, display: true)
         }
-    }
-}
-
-private final class HoverView: NSView {
-    var onHover: (Bool) -> Void = { _ in }
-
-    override init(frame: NSRect) {
-        super.init(frame: frame)
-        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self))
+        layout()
     }
 
-    required init?(coder: NSCoder) { nil }
+    /// Open after a 120 ms dwell on the pill, close after 400 ms away from the open panel, never while held.
+    private func track() {
+        guard let shape else { return }
+        let mouse = NSEvent.mouseLocation
+        let inside = expanded
+            ? shape.open.insetBy(dx: -14, dy: -14).contains(mouse)
+            : shape.compact.insetBy(dx: -6, dy: -6).contains(mouse)
+        if !inside && !expanded { armed = true }
+        guard expanded ? !inside && !hold : inside && armed else { since = nil; return }
+        let now = ProcessInfo.processInfo.systemUptime, start = since ?? now
+        since = start
+        if now - start >= (expanded ? 0.4 : 0.12) { set(expanded: !expanded) }
+    }
 
-    override func mouseEntered(with event: NSEvent) { onHover(true) }
-    override func mouseExited(with event: NSEvent) { onHover(false) }
+    /// Click outside or Esc: close even while held.
+    private func collapse() {
+        guard expanded else { return }
+        hold = false
+        armed = false
+        set(expanded: false)
+    }
+
+    private func set(expanded: Bool) {
+        self.expanded = expanded
+        since = nil
+        place(animated: true)
+    }
 }

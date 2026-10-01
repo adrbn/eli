@@ -1,82 +1,81 @@
-// Eli for macOS: the web face in a window, a desktop widget and/or the notch. Starts the local server if nothing
-// answers, stops it on quit (only the one it started). Built by build.sh, no Xcode project.
+// Eli for macOS: one web face that lives in a window, a floating widget or the notch, one place at a time.
+// Starts the local server if nothing answers, stops it on quit (only the one it started). Built by build.sh, no Xcode project.
 import AppKit
 import WebKit
 
 let defaults = UserDefaults.standard
 let logURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Eli/server.log")
+let french = Locale.preferredLanguages.first?.hasPrefix("fr") == true
+func L(_ fr: String, _ en: String) -> String { french ? fr : en }
 
-enum Mode {
-    static let window = "mode.window", widget = "mode.widget", notch = "mode.notch"
-    static let all = [window, widget, notch]
-}
+enum Placement: String { case window, widget, notch }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuItemValidation, WKUIDelegate, WKNavigationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMenuItemValidation,
+                         WKUIDelegate, WKNavigationDelegate, WKScriptMessageHandler {
+    lazy var web = makeWebView()  // the only one: moved between places, never reloaded, so speech and music go on
     var window: NSWindow?
     var widget: WidgetPanel?
     var notch: NotchPanel?
-    var statusItem: NSStatusItem!
+    var placement = Placement.window
+    var song: (loaded: Bool, singing: Bool, title: String?)?  // reported by the page, nil until it does
     var server: Process?  // the server we started, if any
-    var ready = false  // the server answers
 
-    var url: URL { URL(string: "http://127.0.0.1:\(defaults.integer(forKey: "port"))/")! }
-    var mainWeb: WKWebView? { window?.contentView as? WKWebView }
-    /// Open faces in speaking order: the first one talks, the others are muted mirrors.
-    var faces: [WKWebView] { [mainWeb, widget?.webView, notch?.webView].compactMap { $0 } }
+    var origin: URL { URL(string: "http://127.0.0.1:\(defaults.integer(forKey: "port"))/")! }
+    var page: URL { URL(string: "?app=mac", relativeTo: origin)!.absoluteURL }
+
+    /// Where Eli goes when the window closes: the last widget/notch used, else the notch if this Mac has one.
+    var ambient: Placement {
+        defaults.string(forKey: "ambient").flatMap(Placement.init)
+            ?? (NSScreen.screens.contains { $0.safeAreaInsets.top > 0 } ? .notch : .widget)
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        defaults.register(defaults: ["port": 5280, Mode.window: true, "widget.allSpaces": true])
+        defaults.register(defaults: ["port": 5280, "widget.allSpaces": true])
+        NSWindow.allowsAutomaticWindowTabbing = false  // no tab items in the View menu
         NSApp.mainMenu = mainMenu()
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
-        statusItem.button?.image = NSImage(systemSymbolName: "face.smiling", accessibilityDescription: "Eli")
-        statusItem.menu = statusMenu()
-        applyModes()
+        place(defaults.string(forKey: "placement").flatMap(Placement.init) ?? .window)
         start()
     }
 
     func applicationWillTerminate(_ notification: Notification) { stopServer() }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        if window == nil { setMode(Mode.window, true) }
-        return true
+        place(.window)
+        return false
     }
 
-    // MARK: modes
+    // MARK: placement
 
-    func setMode(_ key: String, _ on: Bool) {
-        defaults.set(on, forKey: key)
-        applyModes()
+    func place(_ next: Placement) {
+        placement = next
+        defaults.set(next.rawValue, forKey: "placement")
+        switch next {
+        case .window:
+            let window = self.window ?? makeWindow()
+            self.window = window
+            window.contentView?.embed(web)
+            window.makeKeyAndOrderFront(nil)
+            window.makeFirstResponder(web)
+            NSApp.activate(ignoringOtherApps: true)
+        case .widget:
+            widget = widget ?? WidgetPanel(webView: web, allSpaces: defaults.bool(forKey: "widget.allSpaces"),
+                                           menu: contextMenu()) { [weak self] in self?.place(.window) }
+        case .notch:
+            notch = notch ?? NotchPanel(webView: web, menu: contextMenu())
+        }
+        // The web view has moved in: now the other places can go.
+        if next != .window { defaults.set(next.rawValue, forKey: "ambient"); window?.close() }
+        if next != .widget { widget?.orderOut(nil); widget = nil }
+        if next != .notch { notch?.dismiss(); notch = nil }
+        relayout()
     }
 
-    func applyModes() {
-        if defaults.bool(forKey: Mode.window) {
-            if window == nil { openWindow() }
-        } else if let closing = window {
-            window = nil
-            closing.close()
-        }
-        if defaults.bool(forKey: Mode.widget) {
-            if widget == nil {
-                widget = WidgetPanel(webView: makeWebView(), allSpaces: defaults.bool(forKey: "widget.allSpaces")) { [weak self] in
-                    self?.setMode(Mode.window, true)
-                }
-            }
-        } else {
-            widget?.orderOut(nil)
-            widget = nil
-        }
-        if defaults.bool(forKey: Mode.notch) {
-            if notch == nil { notch = NotchPanel(webView: makeWebView()) }
-        } else {
-            notch?.orderOut(nil)
-            notch = nil
-        }
-        NSApp.setActivationPolicy(window == nil ? .accessory : .regular)  // no Dock icon for widget/notch only
-        load()
+    func relayout() {
+        if placement == .notch { notch?.layout() } else { web.host("layout", placement.rawValue, [String: Any]()) }
     }
 
-    func openWindow() {
+    func makeWindow() -> NSWindow {
         let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 960, height: 720),
                               styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                               backing: .buffered, defer: false)
@@ -85,48 +84,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         window.titleVisibility = .hidden
         window.backgroundColor = .black
         window.appearance = NSAppearance(named: .darkAqua)
+        window.contentMinSize = NSSize(width: 480, height: 360)
         window.isReleasedWhenClosed = false
         window.delegate = self
-        window.contentView = makeWebView()
         window.center()
         window.setFrameAutosaveName("Eli")  // remembers size and position
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        self.window = window
+        return window
     }
 
+    // Closing the window does not quit: Eli moves to the widget or the notch. ⌘Q quits.
     func windowWillClose(_ notification: Notification) {
-        guard notification.object as? NSWindow === window else { return }  // closed by applyModes
-        DispatchQueue.main.async { [self] in  // let AppKit finish closing before the window goes away
-            if Mode.all.filter(defaults.bool(forKey:)).count > 1 { setMode(Mode.window, false) } else { NSApp.terminate(nil) }
-        }
+        guard placement == .window else { return }  // closed by place(_:)
+        DispatchQueue.main.async { [self] in place(ambient) }  // let AppKit finish closing first
     }
 
     // MARK: server
 
     func start() {
         Task {
-            ready = false
-            if await alive() { return becomeReady() }
-            guard let repo = repoURL() else { return show("No Eli folder chosen.<br>Eli › Choose Eli Folder…") }
-            do { try launchServer(in: repo) } catch { return show("Could not start the server: \(error.localizedDescription)") }
-            show("Waking Eli up…")
+            if await alive() { return load() }
+            guard let repo = repoURL() else {
+                return show(L("Aucun dossier Eli choisi.<br>Développeur › Choisir le dossier Eli…",
+                              "No Eli folder chosen.<br>Developer › Choose Eli Folder…"))
+            }
+            do { try launchServer(in: repo) } catch {
+                return show(L("Impossible de lancer le serveur : ", "Could not start the server: ") + error.localizedDescription)
+            }
+            show(L("Eli se réveille…", "Waking Eli up…"))
             for _ in 0..<600 {  // up to 5 min: the first run downloads ~125 MB of models
-                if await alive() { return becomeReady() }
-                if server?.isRunning == false { return show("The server stopped.<br>Eli › Show Server Log") }
+                if await alive() { return load() }
+                if server?.isRunning == false {
+                    return show(L("Le serveur s’est arrêté.<br>Développeur › Journal du serveur",
+                                  "The server stopped.<br>Developer › Server Log"))
+                }
                 try? await Task.sleep(nanoseconds: 500_000_000)
             }
-            show("The server does not answer on \(url.absoluteString)<br>Eli › Show Server Log")
+            show(L("Le serveur ne répond pas sur ", "The server does not answer on ") + origin.absoluteString)
         }
     }
 
-    func becomeReady() {
-        ready = true
-        load(force: true)
-    }
+    func load() { web.load(URLRequest(url: page)) }
 
     func alive() async -> Bool {
-        let request = URLRequest(url: url.appendingPathComponent("api/status"), timeoutInterval: 1)
+        let request = URLRequest(url: origin.appendingPathComponent("api/status"), timeoutInterval: 1)
         let response = try? await URLSession.shared.data(for: request).1
         return (response as? HTTPURLResponse)?.statusCode == 200
     }
@@ -180,18 +180,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
-        panel.message = "Choose the eli folder (the one with run.sh)"
+        panel.message = L("Choisissez le dossier eli (celui qui contient run.sh)", "Choose the eli folder (the one with run.sh)")
         guard panel.runModal() == .OK, let dir = panel.url else { return nil }
-        guard isRepo(dir) else { show("\(dir.path) has no run.sh and server/app.py."); return nil }
+        guard isRepo(dir) else { show("\(dir.lastPathComponent): run.sh / server/app.py ?"); return nil }
         defaults.set(dir.path, forKey: "repoPath")
         return dir
     }
 
-    // MARK: web views
+    // MARK: web view
 
     func makeWebView() -> WKWebView {
         let config = WKWebViewConfiguration()
         config.mediaTypesRequiringUserActionForPlayback = []  // Eli talks without waiting for a click
+        config.preferences.setValue(defaults.bool(forKey: "dev"), forKey: "developerExtrasEnabled")  // right-click › Inspect
+        config.userContentController.add(WeakHandler(self), name: "eli")
         let web = WKWebView(frame: .zero, configuration: config)
         web.uiDelegate = self
         web.navigationDelegate = self
@@ -200,25 +202,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         return web
     }
 
-    /// Main window: the full page. Widget and notch: the bare face, muted mirror unless they are the first face.
-    func target(for web: WKWebView) -> URL {
-        if web === mainWeb { return url }
-        return URL(string: faces.first === web ? "?bare=1" : "?bare=1&mirror=1", relativeTo: url)!.absoluteURL
-    }
-
-    func load(force: Bool = false) {
-        guard ready else { return }
-        for web in faces where force || web.url != target(for: web) { web.load(URLRequest(url: target(for: web))) }
-    }
-
     func show(_ message: String) {
-        mainWeb?.loadHTMLString("""
+        web.loadHTMLString("""
             <body style="margin:0;height:100vh;display:grid;place-items:center;background:#000;color:#999;
             font:15px -apple-system;text-align:center">\(message)</body>
             """, baseURL: nil)
     }
 
     func isLocal(_ host: String?) -> Bool { host == "127.0.0.1" || host == "localhost" }
+
+    // Page → app: {type:'open', panel}, {type:'hold', on}, {type:'state', loaded, singing, title}, {type:'copy', text}.
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard isLocal(message.frameInfo.securityOrigin.host), let body = message.body as? [String: Any] else { return }
+        switch body["type"] as? String {
+        case "open":
+            place(.window)
+            if let panel = body["panel"] as? String, ["settings", "faces"].contains(panel) { command(panel) }
+        case "hold": notch?.hold = body["on"] as? Bool == true
+        case "state": song = (body["loaded"] as? Bool ?? (body["singing"] as? Bool == true), body["singing"] as? Bool == true, body["title"] as? String)
+        case "copy":  // navigator.clipboard refuses writes without a user gesture, as from a menu
+            guard let text = body["text"] as? String else { return }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+        default: break
+        }
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) { relayout() }
 
     func webView(_ webView: WKWebView, requestMediaCapturePermissionFor origin: WKSecurityOrigin,
                  initiatedByFrame frame: WKFrameInfo, type: WKMediaCaptureType,
@@ -231,7 +241,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         let alert = NSAlert()
         alert.messageText = message
         alert.addButton(withTitle: "OK")
-        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: L("Annuler", "Cancel"))
         completionHandler(alert.runModal() == .alertFirstButtonReturn)
     }
 
@@ -251,100 +261,55 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         return nil
     }
 
-    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { webView.load(URLRequest(url: target(for: webView))) }
+    func webViewWebContentProcessDidTerminate(_ webView: WKWebView) { load() }
+}
 
-    // MARK: menus
+/// The user content controller retains its handlers: a weak hop so the web view does not keep its delegate alive.
+private final class WeakHandler: NSObject, WKScriptMessageHandler {
+    weak var target: WKScriptMessageHandler?
+    init(_ target: WKScriptMessageHandler) { self.target = target }
+    func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
+        target?.userContentController(controller, didReceive: message)
+    }
+}
 
-    @objc func reload() { start() }
-    @objc func openInBrowser() { NSWorkspace.shared.open(url) }
-    @objc func showLog() { NSWorkspace.shared.open(logURL) }
-    @objc func chooseFolder() {
-        guard chooseRepo() != nil else { return }
-        stopServer()
-        start()
+extension WKWebView {
+    /// App → page: window.eliHost[fn](...args), if the page has the bridge.
+    func host(_ fn: String, _ args: Any...) {
+        guard let data = try? JSONSerialization.data(withJSONObject: args), let json = String(data: data, encoding: .utf8) else { return }
+        evaluateJavaScript("window.eliHost && eliHost.\(fn)(...\(json))")
+    }
+}
+
+extension NSView {
+    /// Moves `view` in, under any overlay, filling the bounds.
+    func embed(_ view: NSView) {
+        guard view.superview !== self else { return }
+        view.removeFromSuperview()
+        view.frame = bounds
+        view.autoresizingMask = [.width, .height]
+        addSubview(view, positioned: .below, relativeTo: nil)
+    }
+}
+
+/// Borderless floating panel for the widget and the notch: never steals activation, right-click shows `menu`.
+class EliPanel: NSPanel {
+    static let easeOut = CAMediaTimingFunction(controlPoints: 0.2, 0.8, 0.2, 1)  // no overshoot
+
+    init(frame: NSRect, menu: NSMenu) {
+        super.init(contentRect: frame, styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
+        self.menu = menu
+        hidesOnDeactivate = false
+        isOpaque = false
+        backgroundColor = .clear
+        isReleasedWhenClosed = false
+        isExcludedFromWindowsMenu = true
     }
 
-    @objc func toggleMode(_ sender: NSMenuItem) {
-        guard let key = sender.representedObject as? String else { return }
-        let on = !defaults.bool(forKey: key)
-        if !on && Mode.all.filter(defaults.bool(forKey:)).count == 1 { return NSSound.beep() }  // keep at least one face
-        setMode(key, on)
-    }
-
-    @objc func toggleAllSpaces(_ sender: NSMenuItem) {
-        let on = !defaults.bool(forKey: "widget.allSpaces")
-        defaults.set(on, forKey: "widget.allSpaces")
-        widget?.setAllSpaces(on)
-    }
-
-    func validateMenuItem(_ item: NSMenuItem) -> Bool {
-        if let key = item.representedObject as? String { item.state = defaults.bool(forKey: key) ? .on : .off }
-        return true
-    }
-
-    func item(_ title: String, _ action: Selector, _ key: String = "", _ mods: NSEvent.ModifierFlags = .command,
-              state: String? = nil, mine: Bool = true) -> NSMenuItem {
-        let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
-        item.keyEquivalentModifierMask = mods
-        item.representedObject = state
-        if mine { item.target = self }
-        return item
-    }
-
-    func modeItems() -> [NSMenuItem] {
-        [item("Window", #selector(toggleMode), state: Mode.window),
-         item("Widget", #selector(toggleMode), state: Mode.widget),
-         item("Notch", #selector(toggleMode), state: Mode.notch),
-         item("Widget on All Spaces", #selector(toggleAllSpaces), state: "widget.allSpaces")]
-    }
-
-    func toolItems() -> [NSMenuItem] {
-        [item("Reload", #selector(reload), "r"),
-         item("Open in Browser", #selector(openInBrowser), "o", [.command, .shift]),
-         item("Show Server Log", #selector(showLog), "l", [.command, .shift]),
-         item("Choose Eli Folder…", #selector(chooseFolder))]
-    }
-
-    func statusMenu() -> NSMenu {
-        let menu = NSMenu()
-        (modeItems() + [.separator()] + toolItems() + [.separator(),
-            item("Quit Eli", #selector(NSApplication.terminate(_:)), "q", mine: false)]).forEach(menu.addItem)
-        return menu
-    }
-
-    func mainMenu() -> NSMenu {
-        func submenu(_ title: String, _ items: [NSMenuItem]) -> NSMenuItem {
-            let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-            item.submenu = NSMenu(title: title)
-            items.forEach(item.submenu!.addItem)
-            return item
-        }
-        let std = { (title: String, action: Selector, key: String, mods: NSEvent.ModifierFlags) in
-            self.item(title, action, key, mods, mine: false)
-        }
-        let menu = NSMenu()
-        menu.addItem(submenu("Eli", [
-            std("About Eli", #selector(NSApplication.orderFrontStandardAboutPanel(_:)), "", .command),
-            .separator(),
-            std("Hide Eli", #selector(NSApplication.hide(_:)), "h", .command),
-            std("Quit Eli", #selector(NSApplication.terminate(_:)), "q", .command),
-        ]))
-        menu.addItem(submenu("Edit", [  // without it, ⌘C/⌘V do nothing in the text bar
-            std("Undo", Selector(("undo:")), "z", .command),
-            std("Redo", Selector(("redo:")), "z", [.command, .shift]),
-            .separator(),
-            std("Cut", #selector(NSText.cut(_:)), "x", .command),
-            std("Copy", #selector(NSText.copy(_:)), "c", .command),
-            std("Paste", #selector(NSText.paste(_:)), "v", .command),
-            std("Select All", #selector(NSText.selectAll(_:)), "a", .command),
-        ]))
-        menu.addItem(submenu("View", toolItems() + [.separator()] + modeItems() + [.separator(),
-            std("Enter Full Screen", #selector(NSWindow.toggleFullScreen(_:)), "f", [.command, .control])]))
-        menu.addItem(submenu("Window", [
-            std("Minimize", #selector(NSWindow.performMiniaturize(_:)), "m", .command),
-            std("Close", #selector(NSWindow.performClose(_:)), "w", .command),
-        ]))
-        return menu
+    override func sendEvent(_ event: NSEvent) {
+        let secondary = event.type == .rightMouseDown || (event.type == .leftMouseDown && event.modifierFlags.contains(.control))
+        if secondary, let menu, let view = contentView { return NSMenu.popUpContextMenu(menu, with: event, for: view) }
+        super.sendEvent(event)
     }
 }
 
