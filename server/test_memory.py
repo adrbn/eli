@@ -1,4 +1,4 @@
-"""La mémoire : la conversation survit au redémarrage, le carnet ne retient que des faits, et s'efface."""
+"""Memory: the conversation survives restarts, the notebook keeps only facts, and can be wiped."""
 import tempfile
 import unittest
 from pathlib import Path
@@ -18,7 +18,7 @@ class MemoryTest(unittest.TestCase):
             mem = Memory(folder, digest, idle=3600)
             mem.add("J'ai un chat qui s'appelle Pixel", "Joli nom !")
             mem.timer.cancel()
-            again = Memory(folder, digest, idle=3600)  # redémarrage
+            again = Memory(folder, digest, idle=3600)  # restart
             again.timer.cancel()
             self.assertEqual(again.recent()[0]["content"], "J'ai un chat qui s'appelle Pixel")
             again.consolidate()
@@ -28,6 +28,10 @@ class MemoryTest(unittest.TestCase):
             self.assertIn("- Sam a un chat, Pixel.", again.system_prompt("Tu es Eli."))
             again.forget(everything=True)
             self.assertEqual((again.notes(), again.recent()), ("", []))
+
+    def test_english_prompt(self):
+        prompt = Memory(None, lang=lambda: "en").system_prompt("You are Eli.")
+        self.assertTrue(prompt.startswith("You are Eli.\n\nToday is "))
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
-"""Les mots anglais dans un texte français : « [en]…[/en] » → phonèmes anglais bruts que Piper lit tels quels."""
+"""English words in a French text: "[en]…[/en]" → raw English phonemes that Piper reads as is."""
 from __future__ import annotations
 
 import re
@@ -11,7 +11,7 @@ _lock = threading.Lock()
 
 
 def segments(text: str) -> list[tuple[bool, str]]:
-    """[(anglais ?, morceau), …]. Une balise orpheline (phrase coupée au milieu) est tolérée."""
+    """[(english?, chunk), …]. An orphan tag (sentence cut in the middle) is tolerated."""
     out, english, pos = [], False, 0
     for m in TAG.finditer(text):
         if text[pos:m.start()]:
@@ -23,7 +23,7 @@ def segments(text: str) -> list[tuple[bool, str]]:
 
 
 def plain(text: str) -> str:
-    """Le texte sans balises : pour les sous-titres, la mémoire et les voix qui ne savent pas faire mieux."""
+    """The text without tags: for captions, memory and voices that can't do better."""
     return re.sub(r"\s+", " ", TAG.sub("", text)).strip()
 
 

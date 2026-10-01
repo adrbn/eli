@@ -1,9 +1,9 @@
-"""Isole la voix d'un morceau (MDX-Net, voir mdx.py), pour que le visage chante en vrai sur la piste vocale.
+"""Isolates a song's voice (MDX-Net, see mdx.py), so the face really sings along the vocal track.
 
-La voix arrive bloc par bloc, plus vite que la lecture : chaque bloc fini est annoncé, la page recharge la
-voix partielle (silence là où elle n'est pas encore calculée) et chante dès qu'elle la tient.
-Un seul morceau à la fois ; un nouveau morceau coupe le précédent, et sa séparation avec.
-Le résultat est mis en cache par empreinte du fichier : un morceau déjà vu chante tout de suite.
+The voice comes block by block, faster than playback: each finished block is announced, the page reloads the
+partial voice (silence where it isn't computed yet) and sings as soon as it has it.
+One song at a time; a new song cuts the previous one, and its separation too.
+The result is cached by file hash: a song already seen sings right away.
 """
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ class Stems:
         folder.mkdir(parents=True, exist_ok=True)
         self.jobs: queue.Queue = queue.Queue()
         self.waiting: dict[str, list[str]] = {}
-        self.partial: dict[str, np.ndarray] = {}  # voix en cours de calcul, int16 mono 16 kHz
+        self.partial: dict[str, np.ndarray] = {}  # voices being computed, int16 mono 16 kHz
         self.lock = threading.Lock()
         threading.Thread(target=self._worker, daemon=True).start()
 
@@ -49,7 +49,7 @@ class Stems:
         return self.folder / f"{sha}.wav"
 
     def audio(self, sha: str) -> bytes | None:
-        """La voix isolée en WAV : complète si elle est en cache, sinon ce qui en est déjà calculé."""
+        """The isolated voice as WAV: complete if cached, otherwise what has been computed so far."""
         with self.lock:
             pcm = self.partial.get(sha)
             if pcm is not None:
@@ -60,9 +60,9 @@ class Stems:
             return None
 
     def request(self, src: Path, sha: str, clip_id: str) -> bool:
-        """Demande la voix isolée ; True si elle est déjà prête (on_ready est alors appelé tout de suite)."""
+        """Asks for the isolated voice; True if it is already ready (on_ready is then called right away)."""
         try:
-            os.utime(self.path(sha))  # déjà isolée ; la rajeunir la garde à l'abri du ménage du cache
+            os.utime(self.path(sha))  # already isolated; touching it keeps it safe from cache cleanup
         except FileNotFoundError:
             pass
         else:
@@ -72,7 +72,7 @@ class Stems:
             if sha in self.waiting:
                 self.waiting[sha].append(clip_id)
                 return False
-            self.waiting.clear()  # les morceaux d'avant ont été coupés : leur voix ne servirait plus
+            self.waiting.clear()  # earlier songs were cut: their voice would be useless
             self.waiting[sha] = [clip_id]
         self.jobs.put((src, sha))
         return False
@@ -84,12 +84,12 @@ class Stems:
             try:
                 self._separate(src, sha)
             except Exception as exc:
-                log.exception("séparation en échec sur %s", src.name)
+                log.exception("separation failed on %s", src.name)
                 error = str(exc)[:300]
             with self.lock:
                 self.partial.pop(sha, None)
                 ids = self.waiting.pop(sha, None)
-            for clip_id in ids or []:  # None : abandonné pour un autre morceau, plus personne n'attend
+            for clip_id in ids or []:  # None: dropped for another song, nobody is waiting any more
                 self.on_ready(clip_id, sha, error)
 
     def _separate(self, src: Path, sha: str) -> None:
@@ -99,13 +99,13 @@ class Stems:
             if sha not in self.waiting:
                 return
             self.partial[sha] = pcm
-        log.info("voix : séparation de %s (%.0f s)…", src.name, mix.shape[1] / SR)
+        log.info("voice: separating %s (%.0f s)…", src.name, mix.shape[1] / SR)
         at = 0
         for k, total, vocal in self.separator.blocks(mix):
             chunk = (np.clip(vocal, -1, 1) * 32767).astype(np.int16)[: len(pcm) - at]
             with self.lock:
                 if sha not in self.waiting:
-                    log.info("voix : %s abandonné, un autre morceau l'a remplacé", src.name)
+                    log.info("voice: %s dropped, another song replaced it", src.name)
                     return
                 pcm[at: at + len(chunk)] = chunk
                 ids = list(self.waiting[sha])
@@ -115,4 +115,4 @@ class Stems:
         tmp = self.path(sha).with_suffix(".part")
         tmp.write_bytes(wav_bytes(pcm))
         tmp.replace(self.path(sha))
-        log.info("voix : isolée pour %s", src.name)
+        log.info("voice: isolated for %s", src.name)

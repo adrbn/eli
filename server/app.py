@@ -1,29 +1,39 @@
-"""Eli — serveur local du simulateur de visage.
+"""Eli — local server for the face simulator.
 
-Rôle 1 · l'écran. Même protocole que l'ESP32 plus tard ; la page web n'en est qu'un affichage :
-  POST /clip?kind=speech|music&turn=N&name=f.mp3   corps = fichier audio, en-tête X-Text (texte dit, encodé URL)
-                                                    et X-Phonemes ([[phonème, ms], …] en JSON encodé URL, facultatif)
-  POST /stop    {} ou {"turn": N}                   coupe la parole et vide la file ; ignore ensuite les clips des tours < N
-                ({"keep": "music"} : le morceau en cours continue)
-  POST /state   {"mode": "idle|listen|think"}       humeur de fond du visage
-  POST /gaze    {"x": -1..1, "y": -1..1} ou {}      cible du regard (un capteur, plus tard)
-  POST /theme   {"id": "pixel"}                     change de visage
-  GET  /events                                      flux SSE vers la page
-  GET  /clips/<id>, /stems/<empreinte>.wav          octets audio (/clips/<id>?compat=1 : converti en MP3 ;
-                                                    /stems : la voix isolée, partielle tant qu'elle se calcule)
-Rôle 2 · le cerveau (brain.py), qui ne parle à l'écran que par ce protocole :
-  POST /brain/listen  corps = WAV du micro          → transcription → réponse → voix
-  POST /brain/chat    {"text": "…"}                 → réponse → voix
-  POST /brain/speak   {"text": "…"}                 → voix (dit exactement ce texte)
-  POST /brain/reset   (?all=1 : le carnet aussi)    oublie la conversation
-  POST /brain/intro                                 les présentations : Eli pose quelques questions pour te connaître
-  POST /brain/meow                                  un miaou (visages de chat)
-  POST /brain/brief                                 le point du matin : date, météo (BRIEF_CITY), un mot pour toi
-  POST /brain/hotword  corps = WAV 16 kHz mono      écoute permanente : est-ce « Eli, … » ? (voir hotword.py)
-  POST /music/setup  {"url","user","password"}      accès Navidrome (vérifié, seul un jeton est gardé) ; /music/forget
-  GET  /api/status, /api/voices, /api/memory        état, voix au choix (POST /voice {"id"}), souvenirs
-  GET  /api/music                                   {"configured","url","user"}
-  Les clips de parole peuvent porter X-Mood (joie, tristesse… voir tags.py) : le visage joue l'émotion.
+Role 1 · the screen. Same protocol as the ESP32 later; the web page is just one display of it:
+  POST /clip?kind=speech|music&turn=N&name=f.mp3   body = audio file, header X-Text (spoken text, URL-encoded)
+                                                    and X-Phonemes ([[phoneme, ms], …] as URL-encoded JSON, optional)
+  POST /stop    {} or {"turn": N}                   cuts speech and empties the queue; then ignores clips of turns < N
+                ({"keep": "music"}: the current song goes on)
+  POST /state   {"mode": "idle|listen|think"}       the face's background mood
+  POST /gaze    {"x": -1..1, "y": -1..1} or {}      where to look (a sensor, later)
+  POST /theme   {"id": "pixel"}                     changes the face
+  POST /take    {"client": "…"}                     this page talks now; the others fall silent (event "take")
+  POST /lang    {"lang": "en|fr"}                   the language Eli speaks (event "lang"; ELI_LANG in .env, auto by default)
+  GET  /events                                      SSE stream to the page
+  GET  /clips/<id>, /stems/<hash>.wav               audio bytes (/clips/<id>?compat=1: converted to MP3;
+                                                    /stems: the isolated voice, partial while it is computed)
+Role 2 · the brain (brain.py), which only talks to the screen through this protocol:
+  POST /brain/listen  body = mic WAV                → transcription → answer → voice
+  POST /brain/chat    {"text": "…"}                 → answer → voice
+  POST /brain/speak   {"text": "…"}                 → voice (says exactly this text)
+  POST /brain/reset   (?all=1: the notebook too)    forgets the conversation
+  POST /brain/intro                                 introductions: Eli asks a few questions to get to know you
+  POST /brain/meow                                  a meow (cat faces)
+  POST /brain/brief                                 the morning brief: date, weather (BRIEF_CITY), a word for you
+  POST /brain/hotword  body = 16 kHz mono WAV       always-on listening: is it "Eli, …"? (see hotword.py)
+  POST /music/setup  {"url","user","password"}      Navidrome access (checked, only a token is kept); /music/forget
+  GET  /api/status, /api/voices, /api/memory        state (incl. "lang", "lang_setting"), voices (POST /voice {"id"}), memories
+  GET  /api/music                                   {"configured","url","user","server"}
+  GET  /api/music/songs?q=…                         the picker: library search (nothing = random songs)
+  GET  /music/cover/<id>                            album art, proxied (the Subsonic token stays here)
+  POST /music/play  {"id": "…"}                    sing this library song now
+  POST /music/ping                                 is the music server answering (and how fast)
+  POST /music/prev, /music/next                    the songs sung, back and forth (a random one past the end)
+  GET  /api/logs?after=N                            developer mode: recent log lines, secrets stripped
+  Songs may carry X-Genre; the server announces their look (event "genre", see genre.py) and their synced lyrics
+  from LRCLIB (event "lyrics", see lyrics.py; LYRICS=off in .env to skip).
+  Speech clips may carry X-Mood (joie, tristesse… see tags.py): the face acts the emotion.
 """
 from __future__ import annotations
 
@@ -49,6 +59,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from brain import Brain, FaceClient  # noqa: E402
+import devlog  # noqa: E402
+import genre  # noqa: E402
+import lyrics  # noqa: E402
 from hotword import Hotword, command  # noqa: E402
 from navidrome import MusicError, Navidrome  # noqa: E402
 import tags  # noqa: E402
@@ -56,19 +69,24 @@ from stems import Stems  # noqa: E402
 from voice import make_tts  # noqa: E402
 
 log = logging.getLogger("eli")
-mimetypes.add_type("audio/wav", ".wav")  # sinon les clips du cerveau sont rangés en .bin
+RING = devlog.Ring()  # the last log lines, for developer mode (GET /api/logs)
+logging.getLogger().addHandler(RING)
+mimetypes.add_type("audio/wav", ".wav")  # otherwise the brain's clips are stored as .bin
 
 ROOT = Path(__file__).resolve().parent.parent
+VERSION = devlog.version(ROOT)
 WEB = ROOT / "web"
 CACHE = ROOT / "cache"
 MAX_AUDIO = 150 * 1024 * 1024
 MAX_JSON = 64 * 1024
 CACHE_BYTES = 400 * 1024 * 1024
-KEEP_RECENT = 30 * 60  # s : le ménage du cache épargne les fichiers plus jeunes
+KEEP_RECENT = 30 * 60  # s: cache cleanup spares younger files
 MODES = {"idle", "listen", "think"}
+LANGS = ("fr", "en")
 THEME_ID = re.compile(r"^[a-z0-9-]{1,32}$")
 CLIP_ID = re.compile(r"^[0-9a-f]{12}$")
 SHA = re.compile(r"^[0-9a-f]{64}$")
+SONG_ID = re.compile(r"^[\w.-]{1,80}$")  # Subsonic ids (songs, covers): opaque, but never a path
 AUDIO_EXT = {".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".oga", ".opus", ".aif", ".aiff", ".caf", ".webm", ".mp4"}
 
 DEFAULTS = {
@@ -78,13 +96,14 @@ DEFAULTS = {
     "ECHO_URL": "",
     "ECHO_API_KEY": "",
     "STT_PROVIDERS": "groq,echo",
-    "STT_LANGUAGE": "fr",
+    "ELI_LANG": "auto",  # en, fr, or auto: the page's language (its browser's), which the page can override
+    "STT_LANGUAGE": "",  # empty = follows the language
     "GROQ_STT_MODEL": "whisper-large-v3-turbo",
-    "LLM_URL": "",  # un LLM local au format OpenAI (mlx_lm.server, Ollama…) ; vide = Groq
+    "LLM_URL": "",  # a local OpenAI-style LLM (mlx_lm.server, Ollama…); empty = Groq
     "LLM_API_KEY": "",
-    "BRIEF_CITY": "",  # ville de la météo du point du matin (Open-Meteo), vide = sans météo
-    "ALLOWED_HOSTS": "",  # noms servis en plus des IP et de localhost (ex. eli.tailnet.ts.net derrière tailscale serve)
-    "NAVIDROME_URL": "", "NAVIDROME_USER": "", "NAVIDROME_PASSWORD": "",  # ou le formulaire Réglages → Musique
+    "BRIEF_CITY": "",  # city for the morning brief's weather (Open-Meteo), empty = no weather
+    "ALLOWED_HOSTS": "",  # names served besides IPs and localhost (e.g. eli.tailnet.ts.net behind tailscale serve)
+    "NAVIDROME_URL": "", "NAVIDROME_USER": "", "NAVIDROME_PASSWORD": "",  # or the Settings → Music form
     "LLM_MODEL": "openai/gpt-oss-120b",
     "LLM_FALLBACK_MODEL": "openai/gpt-oss-20b",
     "TTS": "piper",
@@ -107,22 +126,30 @@ def load_config(env_file: Path = ROOT / ".env") -> dict:
     return cfg
 
 
+def default_lang(cfg: dict) -> str:
+    """ELI_LANG=en|fr, or auto: the system locale until a page says which language it speaks (POST /lang)."""
+    if cfg.get("ELI_LANG") in LANGS:
+        return cfg["ELI_LANG"]
+    return "fr" if (os.environ.get("LC_ALL") or os.environ.get("LANG") or "").lower().startswith("fr") else "en"
+
+
 _prune_lock = threading.Lock()
 
 
 FFMPEG = shutil.which("ffmpeg") or next(
     (p for p in ("/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg") if os.access(p, os.X_OK)), None
 )
+FFPROBE = shutil.which("ffprobe") or (str(Path(FFMPEG).with_name("ffprobe")) if FFMPEG else None)
 _compat_lock = threading.Lock()
 
 
 def compat_mp3(src: Path) -> Path:
-    """Copie MP3 d'un son que le navigateur ne sait pas décoder (l'ALAC des m4a d'Apple, par exemple)."""
+    """MP3 copy of a sound the browser can't decode (Apple's ALAC m4a, for example)."""
     out = src.with_name(src.stem + ".compat.mp3")
-    with _compat_lock:  # ponytail: un verrou global, une conversion à la fois ; par fichier si ça devient courant
+    with _compat_lock:  # ponytail: one global lock, one conversion at a time; per file if it becomes common
         if not out.exists():
             if not FFMPEG:
-                raise RuntimeError("ffmpeg introuvable")
+                raise RuntimeError("ffmpeg not found")
             tmp = out.with_suffix(".part")
             cmd = [FFMPEG, "-v", "error", "-y", "-i", str(src), "-vn", "-c:a", "libmp3lame", "-q:a", "2", "-f", "mp3", str(tmp)]
             subprocess.run(cmd, check=True, capture_output=True, timeout=300)
@@ -131,8 +158,8 @@ def compat_mp3(src: Path) -> Path:
 
 
 def prune(folder: Path, limit: int) -> None:
-    """Garde le cache sous `limit` octets en supprimant les plus vieux fichiers (le disque est presque plein).
-    Les fichiers récents restent : un morceau peut attendre que sa voix soit isolée, une page peut être en train de le lire."""
+    """Keeps the cache under `limit` bytes by deleting the oldest files (the disk is nearly full).
+    Recent files stay: a song may be waiting for its voice to be isolated, a page may be playing it."""
     with _prune_lock:
         files = sorted(((p.stat(), p) for p in folder.glob("*") if p.is_file()), key=lambda f: f[0].st_mtime)
         total, now = sum(st.st_size for st, _ in files), time.time()
@@ -144,7 +171,7 @@ def prune(folder: Path, limit: int) -> None:
 
 
 def parse_phonemes(raw: str | None) -> list | None:
-    """[[phonème, durée ms], …] venu du cerveau ; tout ce qui ne colle pas est ignoré (la bouche suivra le son)."""
+    """[[phoneme, duration ms], …] from the brain; anything off is ignored (the mouth will follow the sound)."""
     try:
         data = json.loads(urllib.parse.unquote(raw or ""))
     except ValueError:
@@ -156,7 +183,7 @@ def parse_phonemes(raw: str | None) -> list | None:
 
 
 class Hub:
-    """Diffuse les événements à toutes les pages ouvertes (SSE) et garde l'état courant de l'écran."""
+    """Broadcasts events to every open page (SSE) and keeps the screen's current state."""
 
     def __init__(self):
         self.clients: set[queue.Queue] = set()
@@ -179,7 +206,7 @@ class Hub:
             for q in self.clients:
                 try:
                     q.put_nowait(msg)
-                except queue.Full:  # page figée : elle se resynchronisera en se reconnectant
+                except queue.Full:  # frozen page: it will resync when it reconnects
                     pass
 
 
@@ -208,22 +235,22 @@ class Clips:
 
 
 def make_stems(cfg: dict, on_ready, on_progress) -> Stems | None:
-    """La séparation de voix, si son modèle et ffmpeg sont là ; sinon il danse sans chanter."""
+    """Voice separation, if its model and ffmpeg are there; otherwise he dances without singing."""
     model = Path(cfg["SEPARATOR_MODEL"])
     model = model if model.is_absolute() else ROOT / model
     if not (FFMPEG and model.exists()):
-        log.warning("chant désactivé : %s", "ffmpeg introuvable" if not FFMPEG else f"modèle absent ({model.name})")
+        log.warning("singing disabled: %s", "ffmpeg not found" if not FFMPEG else f"model missing ({model.name})")
         return None
     try:
         from mdx import Separator
         return Stems(Separator(model), FFMPEG, CACHE / "stems", on_ready, on_progress)
-    except Exception as exc:  # onnxruntime absent, modèle illisible…
-        log.warning("chant désactivé : %s", exc)
+    except Exception as exc:  # onnxruntime missing, unreadable model…
+        log.warning("singing disabled: %s", exc)
         return None
 
 
 def pcm16k(data: bytes) -> bytes | None:
-    """Les échantillons d'un WAV 16 bits mono 16 kHz, ou None si ce n'en est pas un."""
+    """The samples of a 16-bit mono 16 kHz WAV, or None if it isn't one."""
     try:
         with wave.open(io.BytesIO(data)) as wf:
             if (wf.getnchannels(), wf.getsampwidth(), wf.getframerate()) != (1, 2, 16000):
@@ -237,13 +264,16 @@ class App:
     def __init__(self, cfg: dict, port: int, tts=None, with_stems: bool = True):
         self.cfg, self.port = cfg, port
         self.hub = Hub()
+        self.hub.state["lang"] = default_lang(cfg)
+        lang = lambda: self.hub.state["lang"]  # noqa: E731
         self.clips = Clips(CACHE / "clips")
-        self.tts = tts or make_tts(cfg, ROOT)
+        self.tts = tts or make_tts(cfg, ROOT, lang())
         self.stems = make_stems(cfg, self._stem_ready, self._stem_progress) if with_stems else None
         self.music = Navidrome(ROOT / "local" / "navidrome.json", cfg)
         self.brain = Brain(cfg, self.tts, FaceClient(cfg.get("FACE_URL") or f"http://127.0.0.1:{port}"), self.hub.publish,
-                           lambda: self.hub.state["theme"], self.music)
-        self.hotword = Hotword(ROOT / "voices")
+                           lambda: self.hub.state["theme"], self.music, lang)
+        self.hotword = Hotword(ROOT / "voices", lang)
+        self.sync_voice()  # the chosen voice of this language may still need downloading
 
     def _stem_ready(self, clip_id: str, sha: str, error: str | None) -> None:
         if error:
@@ -256,14 +286,46 @@ class App:
         for clip_id in clip_ids:
             self.hub.publish("stem", {"id": clip_id, "url": f"/stems/{sha}.wav", "done": done, "total": total})
 
+    def sync_voice(self) -> None:
+        """The voice follows the language; a missing Piper voice downloads (~60 MB) in a thread."""
+        tts, lang = self.tts, self.hub.state["lang"]
+        if not hasattr(tts, "set_lang"):
+            return
+
+        def run() -> None:
+            try:
+                tts.set_lang(lang, lambda: self.hub.publish("voice", tts.catalog()))
+            except Exception as exc:
+                log.warning("no %s voice: %s", lang, exc)
+            self.hub.publish("voice", tts.catalog())
+
+        threading.Thread(target=run, daemon=True).start()
+
+    def dress(self, clip_id: str, path: Path, name: str, known: str) -> None:
+        """The song's genre (event "genre": the page dresses Eli) and synced lyrics (event "lyrics": the karaoke line)."""
+        look = genre.detect(path, name, known, FFPROBE, self.brain.quick if self.brain.has_llm() else None)
+        log.info("genre of %s: %s", name, look or "unknown")
+        if look:
+            self.hub.publish("genre", {"id": clip_id, "look": look})
+        if self.cfg.get("LYRICS", "on") == "off":
+            return
+        info = genre.tags(path, FFPROBE)
+        who = lyrics.guess(name, info)
+        lines = lyrics.fetch(*who, info.get("duration")) if who else None
+        log.info("lyrics of %s: %s", name, f"{len(lines)} lines" if lines else "none")
+        if lines:
+            self.hub.publish("lyrics", {"id": clip_id, "lines": lines, "artist": who[0], "title": who[1]})
+
     def status(self) -> dict:
         return {
             "tts": self.tts.name,
             "stt": self.cfg["STT_PROVIDERS"],
             "llm": self.cfg["LLM_MODEL"] if self.brain.has_llm() else None,
             "stems": bool(self.stems),
-            "turn": self.brain.turn,  # une page qui (re)vient sait quels clips sont périmés
-            **self.hub.state,
+            "turn": self.brain.turn,
+            "version": VERSION,  # a page that (re)connects knows which clips are stale
+            "lang_setting": self.cfg.get("ELI_LANG", "auto"),  # ELI_LANG in .env; the page's choice wins over it
+            **self.hub.state,  # incl. "lang", the language Eli speaks now
         }
 
 
@@ -274,10 +336,10 @@ class Handler(BaseHTTPRequestHandler):
     def app(self) -> App:
         return self.server.app  # type: ignore[attr-defined]
 
-    def log_message(self, fmt, *args):  # le journal par défaut est trop bavard (une ligne par fichier statique)
+    def log_message(self, fmt, *args):  # the default log is too chatty (one line per static file)
         pass
 
-    # --- réponses -----------------------------------------------------------------------------
+    # --- responses ----------------------------------------------------------------------------
     def _send(self, code: int, body: bytes, ctype: str, extra: dict | None = None) -> None:
         self.send_response(code)
         self.send_header("Content-Type", ctype)
@@ -294,9 +356,9 @@ class Handler(BaseHTTPRequestHandler):
     def _error(self, code: int, message: str) -> None:
         self._json(code, {"ok": False, "error": message})
 
-    # --- garde-fous ---------------------------------------------------------------------------
+    # --- safeguards ---------------------------------------------------------------------------
     def _host_ok(self) -> bool:
-        """Refuse les noms de domaine (DNS rebinding) : seules les IP, localhost et ALLOWED_HOSTS sont servis."""
+        """Refuses domain names (DNS rebinding): only IPs, localhost and ALLOWED_HOSTS are served."""
         host = urllib.parse.urlsplit("//" + (self.headers.get("Host") or "")).hostname or ""
         allowed = {h.strip().lower() for h in self.app.cfg.get("ALLOWED_HOSTS", "").split(",") if h.strip()}
         if host == "localhost" or host in allowed:
@@ -308,7 +370,7 @@ class Handler(BaseHTTPRequestHandler):
             return False
 
     def _origin_ok(self) -> bool:
-        """Une page d'un autre site ne doit pas pouvoir faire parler le robot (CSRF)."""
+        """A page from another site must not be able to make the robot talk (CSRF)."""
         origin = self.headers.get("Origin")
         return origin is None or urllib.parse.urlsplit(origin).netloc == self.headers.get("Host")
 
@@ -318,13 +380,13 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError:
             length = -1
         if length <= 0 or length > limit:
-            self._error(413 if length > limit else 400, "corps absent ou trop gros")
+            self._error(413 if length > limit else 400, "body missing or too large")
             return None
         return self.rfile.read(length)
 
     def _json_body(self) -> dict | None:
         if not (self.headers.get("Content-Type") or "").startswith("application/json"):
-            self._error(415, "JSON attendu")
+            self._error(415, "JSON expected")
             return None
         raw = self._body(MAX_JSON)
         if raw is None:
@@ -332,17 +394,17 @@ class Handler(BaseHTTPRequestHandler):
         try:
             data = json.loads(raw)
         except ValueError:
-            self._error(400, "JSON invalide")
+            self._error(400, "invalid JSON")
             return None
         if not isinstance(data, dict):
-            self._error(400, "objet JSON attendu")
+            self._error(400, "JSON object expected")
             return None
         return data
 
     # --- GET ----------------------------------------------------------------------------------
     def do_GET(self) -> None:
         if not self._host_ok():
-            return self._error(403, "hôte refusé")
+            return self._error(403, "host refused")
         path = urllib.parse.urlsplit(self.path).path
         if path == "/events":
             return self._events()
@@ -351,28 +413,45 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/memory":
             mem = self.app.brain.memory
             return self._json(200, {"notes": mem.notes(), "messages": len(mem.recent())})
+        if path == "/api/logs":  # developer mode: the log lines after ?after=N, secrets stripped
+            after = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("after", ["0"])[0]
+            return self._json(200, {"lines": RING.after(int(after) if after.isdigit() else 0), "version": VERSION})
         if path == "/api/music":
             return self._json(200, self.app.music.status())
+        if path == "/api/music/songs":  # the picker: ?q=… searches, nothing = a random handful
+            q = urllib.parse.parse_qs(urllib.parse.urlsplit(self.path).query).get("q", [""])[0]
+            try:
+                return self._json(200, {"songs": self.app.music.songs(q[:100])})
+            except MusicError as exc:
+                return self._error(502, str(exc))
+        if path.startswith("/music/cover/"):
+            cover = path[13:]
+            if not SONG_ID.match(cover) or not self.app.music.auth:
+                return self._error(404, "unknown cover")
+            try:
+                return self._send(200, self.app.music.cover(cover), "image/jpeg")
+            except MusicError:
+                return self._error(404, "no cover")
         if path == "/api/voices":
             catalog = getattr(self.app.tts, "catalog", None)
             return self._json(200, catalog() if catalog else {"current": None, "busy": None, "voices": []})
         if path.startswith("/clips/"):
             found = self.app.clips.get(path[7:]) if CLIP_ID.match(path[7:]) else None
             if not found:
-                return self._error(404, "clip inconnu")
+                return self._error(404, "unknown clip")
             meta, file = found
-            if urllib.parse.urlsplit(self.path).query == "compat=1":  # la page n'a pas su le décoder
+            if urllib.parse.urlsplit(self.path).query == "compat=1":  # the page couldn't decode it
                 try:
                     return self._send(200, compat_mp3(file).read_bytes(), "audio/mpeg")
                 except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
-                    log.warning("conversion de %s impossible : %s", file.name, exc)
-                    return self._error(415, "format illisible, et la conversion en MP3 a échoué")
+                    log.warning("can't convert %s: %s", file.name, exc)
+                    return self._error(415, "unreadable format, and the MP3 conversion failed")
             return self._send(200, file.read_bytes(), meta["type"] or "application/octet-stream")
         if path.startswith("/stems/"):
             sha = path[7:].removesuffix(".wav")
             audio = self.app.stems.audio(sha) if self.app.stems and SHA.match(sha) else None
             if audio is None:
-                return self._error(404, "voix isolée inconnue")
+                return self._error(404, "unknown isolated voice")
             return self._send(200, audio, "audio/wav")
         return self._static(path)
 
@@ -381,7 +460,7 @@ class Handler(BaseHTTPRequestHandler):
         if target.is_dir():
             target = target / "index.html"
         if WEB.resolve() not in target.parents or not target.is_file():
-            return self._error(404, "introuvable")
+            return self._error(404, "not found")
         ctype = "text/javascript" if target.suffix in (".js", ".mjs") else (mimetypes.guess_type(target.name)[0] or "application/octet-stream")
         if ctype.startswith("text/"):
             ctype += "; charset=utf-8"
@@ -392,7 +471,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "text/event-stream; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
         self.end_headers()
-        self.connection.settimeout(60)  # page disparue sans prévenir : l'écriture finit par lâcher
+        self.connection.settimeout(60)  # page gone without notice: the write eventually fails
         q = self.app.hub.subscribe()
         try:
             hello = json.dumps(self.app.status(), ensure_ascii=False)
@@ -405,7 +484,7 @@ class Handler(BaseHTTPRequestHandler):
                     msg = b": ping\n\n"
                 self.wfile.write(msg)
                 self.wfile.flush()
-        except OSError:  # la page s'est fermée
+        except OSError:  # the page closed
             pass
         finally:
             self.app.hub.unsubscribe(q)
@@ -413,7 +492,7 @@ class Handler(BaseHTTPRequestHandler):
     # --- POST ---------------------------------------------------------------------------------
     def do_POST(self) -> None:
         if not (self._host_ok() and self._origin_ok()):
-            return self._error(403, "origine refusée")
+            return self._error(403, "origin refused")
         url = urllib.parse.urlsplit(self.path)
         query = dict(urllib.parse.parse_qsl(url.query))
         route = {
@@ -422,6 +501,8 @@ class Handler(BaseHTTPRequestHandler):
             "/state": self._post_state,
             "/gaze": self._post_gaze,
             "/theme": self._post_theme,
+            "/take": self._post_take,
+            "/lang": self._post_lang,
             "/voice": self._post_voice,
             "/brain/listen": self._post_listen,
             "/brain/chat": self._post_chat,
@@ -433,23 +514,27 @@ class Handler(BaseHTTPRequestHandler):
             "/brain/hotword": self._post_hotword,
             "/music/setup": self._post_music_setup,
             "/music/forget": self._post_music_forget,
+            "/music/ping": self._post_music_ping,
+            "/music/play": self._post_music_play,
+            "/music/next": lambda _q: self._post_music_step(1),
+            "/music/prev": lambda _q: self._post_music_step(-1),
         }.get(url.path)
         if route is None:
-            return self._error(404, "route inconnue")
+            return self._error(404, "unknown route")
         route(query)
 
     def _audio_body(self) -> bytes | None:
         ctype = (self.headers.get("Content-Type") or "").split(";")[0].strip().lower()
-        # Les types « simples » (text/plain, formulaires) sont ceux qu'un site tiers peut envoyer sans permission.
+        # "Simple" types (text/plain, forms) are those a third-party site can send without permission.
         if ctype in ("text/plain", "application/x-www-form-urlencoded", "multipart/form-data"):
-            self._error(415, "envoie le fichier audio brut (audio/*)")
+            self._error(415, "send the raw audio file (audio/*)")
             return None
         return self._body(MAX_AUDIO)
 
     def _post_clip(self, query: dict) -> None:
         kind = query.get("kind", "speech")
         if kind not in ("speech", "music"):
-            return self._error(400, "kind doit valoir speech ou music")
+            return self._error(400, "kind must be speech or music")
         data = self._audio_body()
         if data is None:
             return
@@ -468,6 +553,8 @@ class Handler(BaseHTTPRequestHandler):
         if mood in tags.MOODS:
             meta["mood"] = mood
         if kind == "music":
+            known = urllib.parse.unquote(self.headers.get("X-Genre") or "")
+            threading.Thread(target=self.app.dress, args=(meta["id"], path, name, known), daemon=True).start()
             meta["stem"] = "off"
             if self.app.stems:
                 meta["stem"] = "pending"
@@ -487,9 +574,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             turn, keep = data.get("turn"), "music" if data.get("keep") == "music" else None
             if turn is not None and (not isinstance(turn, int) or isinstance(turn, bool)):
-                return self._error(400, 'attendu {} ou {"turn": N}')
-        if turn is None:  # stop venu d'un humain : le cerveau abandonne aussi ce qu'il préparait
-            self.app.brain.cancel()
+                return self._error(400, 'expected {} or {"turn": N}')
+        if turn is None:  # stop from a human: the brain also drops what it was preparing (but Esc keeps a song coming)
+            self.app.brain.cancel(keep)
             turn = self.app.brain.turn
         self.app.hub.publish("stop", {"turn": turn, "keep": keep})
         self._json(200, {"ok": True})
@@ -499,7 +586,7 @@ class Handler(BaseHTTPRequestHandler):
         if data is None:
             return
         if data.get("mode") not in MODES:
-            return self._error(400, f"mode parmi {sorted(MODES)}")
+            return self._error(400, f"mode among {sorted(MODES)}")
         self.app.hub.state["mode"] = data["mode"]
         self.app.hub.publish("state", {"mode": data["mode"]})
         self._json(200, {"ok": True})
@@ -513,7 +600,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 gaze = {k: max(-1.0, min(1.0, float(data[k]))) for k in ("x", "y")}
             except (KeyError, TypeError, ValueError):
-                return self._error(400, 'attendu {"x": -1..1, "y": -1..1} ou {}')
+                return self._error(400, 'expected {"x": -1..1, "y": -1..1} or {}')
         self.app.hub.state["gaze"] = gaze
         self.app.hub.publish("gaze", {"gaze": gaze})
         self._json(200, {"ok": True})
@@ -524,9 +611,30 @@ class Handler(BaseHTTPRequestHandler):
             return
         theme = data.get("id")
         if not isinstance(theme, str) or not THEME_ID.match(theme):
-            return self._error(400, "id de thème invalide")
+            return self._error(400, "invalid theme id")
         self.app.hub.state["theme"] = theme
         self.app.hub.publish("theme", {"id": theme, "from": data.get("from")})
+        self._json(200, {"ok": True})
+
+    def _post_take(self, _query: dict) -> None:
+        """A page takes the floor: the others (tabs, apps, other devices) fall silent, so Eli has one voice."""
+        data = self._json_body()
+        if data is None:
+            return
+        self.app.hub.publish("take", {"client": str(data.get("client", ""))[:20]})
+        self._json(200, {"ok": True})
+
+    def _post_lang(self, _query: dict) -> None:
+        data = self._json_body()
+        if data is None:
+            return
+        lang = data.get("lang")
+        if lang not in LANGS:
+            return self._error(400, 'expected {"lang": "en"} or {"lang": "fr"}')
+        if lang != self.app.hub.state["lang"]:  # ponytail: one language for all pages, the last one to say wins
+            self.app.hub.state["lang"] = lang
+            self.app.hub.publish("lang", {"lang": lang})
+            self.app.sync_voice()
         self._json(200, {"ok": True})
 
     def _post_voice(self, _query: dict) -> None:
@@ -534,23 +642,23 @@ class Handler(BaseHTTPRequestHandler):
         if data is None:
             return
         voice, tts = data.get("id"), self.app.tts
-        if isinstance(data.get("cat"), bool) and hasattr(tts, "set_cat"):  # {"cat": true} : filtre voix de chat
+        if isinstance(data.get("cat"), bool) and hasattr(tts, "set_cat"):  # {"cat": true}: cat voice filter
             tts.set_cat(data["cat"])
             self.app.hub.publish("voice", tts.catalog())
-            if self.app.brain.cat():  # sur un autre visage, la voix ne change pas : rien à faire entendre
-                self.app.brain.start("speak", "Miaou ! Voilà ma voix de chat." if data["cat"] else "Je reprends ma voix normale.")
+            if self.app.brain.cat():  # on another face the voice doesn't change: nothing to hear
+                self.app.brain.start("speak", self.app.brain.line("cat_on" if data["cat"] else "cat_off"))
             return self._json(200, {"ok": True})
         if not hasattr(tts, "choose") or not isinstance(voice, str) or voice not in {v["id"] for v in tts.catalog()["voices"]}:
-            return self._error(400, "voix inconnue")
+            return self._error(400, "unknown voice")
 
-        def switch() -> None:  # une voix Piper pas encore là se télécharge (~60 Mo) : hors de la requête
+        def switch() -> None:  # a Piper voice not there yet downloads (~60 MB): outside the request
             try:
                 tts.choose(voice)
             except Exception as exc:
-                log.warning("voix %s impossible : %s", voice, exc)
+                log.warning("voice %s failed: %s", voice, exc)
                 return self.app.hub.publish("voice", {**tts.catalog(), "error": str(exc)[:200]})
             self.app.hub.publish("voice", tts.catalog())
-            self.app.brain.start("speak", "Voilà ma nouvelle voix. Elle te plaît ?")
+            self.app.brain.start("speak", self.app.brain.line("new_voice"))
 
         self.app.hub.publish("voice", {**tts.catalog(), "busy": voice})
         threading.Thread(target=switch, daemon=True).start()
@@ -567,7 +675,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         text = data.get("text")
         if not isinstance(text, str) or not text.strip() or len(text) > 2000:
-            return self._error(400, "texte entre 1 et 2000 caractères")
+            return self._error(400, "text between 1 and 2000 characters")
         self._json(202, {"ok": True, "turn": self.app.brain.start(kind, text.strip())})
 
     def _post_chat(self, _query: dict) -> None:
@@ -586,25 +694,25 @@ class Handler(BaseHTTPRequestHandler):
         self._json(202, {"ok": True, "turn": self.app.brain.start("meow", None)})
 
     def _post_hotword(self, _query: dict) -> None:
-        """Un bout de phrase entendu en écoute permanente : est-ce qu'on parle à Eli ?
-        Réponses : {"wake": false} ; {"wake": true, "listen": true} (son nom seul : il écoute la suite) ;
-        {"wake": true, "turn": N} (« Eli, … » : il répond)."""
+        """A bit of speech heard while always listening: is someone talking to Eli?
+        Answers: {"wake": false}; {"wake": true, "listen": true} (just his name: he listens for the rest);
+        {"wake": true, "turn": N} ("Eli, …": he answers)."""
         data = self._audio_body()
         if data is None:
             return
         pcm = pcm16k(data)
         if pcm is None:
-            return self._error(400, "WAV 16 kHz mono 16 bits attendu")
+            return self._error(400, "16-bit mono 16 kHz WAV expected")
         app = self.app
         try:
             if not app.hotword.maybe(pcm):
                 return self._json(200, {"wake": False})
-            if len(pcm) < 2 * 16000:  # moins d'une seconde : son nom seul, inutile de transcrire
+            if len(pcm) < 2 * 16000:  # under a second: just his name, no need to transcribe
                 return self._json(200, {"wake": True, "listen": True})
             text, provider = app.brain.transcribe(data)
-        except Exception as exc:  # modèle absent, Vosk pas installé, oreilles en panne
-            log.warning("mot de réveil en échec : %s", exc)
-            return self._error(503, f"écoute de « Eli » indisponible : {exc}")
+        except Exception as exc:  # model missing, Vosk not installed, ears down
+            log.warning("wake word failed: %s", exc)
+            return self._error(503, f"listening for \"Eli\" unavailable: {exc}")
         cmd = command(text)
         if cmd is None:
             return self._json(200, {"wake": False})
@@ -619,7 +727,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         url, user, password = (data.get(k) for k in ("url", "user", "password"))
         if not all(isinstance(v, str) for v in (url, user, password)):
-            return self._error(400, "url, user et password attendus")
+            return self._error(400, "url, user and password expected")
         try:
             status = self.app.music.setup(url, user, password)
         except MusicError as exc:
@@ -631,6 +739,50 @@ class Handler(BaseHTTPRequestHandler):
         self.app.music.forget()
         self.app.hub.publish("music", self.app.music.status())
         self._json(200, self.app.music.status())
+
+    def _post_music_ping(self, _query: dict) -> None:
+        try:
+            self._json(200, self.app.music.ping())
+        except MusicError as exc:
+            self._error(502, str(exc))
+
+    def _post_music_play(self, _query: dict) -> None:
+        """The picker: sing this library song now (the page has already stopped what was playing)."""
+        data = self._json_body()
+        if data is None:
+            return
+        song_id = data.get("id")
+        if not isinstance(song_id, str) or not SONG_ID.match(song_id):
+            return self._error(400, "song id expected")
+        brain = self.app.brain
+
+        def play() -> None:
+            try:
+                song = self.app.music.song(song_id)
+                brain.publish("brain", {"stage": "fetch", "text": f"{song['artist']} – {song['title']}".strip(" –")})
+                brain.sing(song, announce=True)
+            except (MusicError, OSError) as exc:
+                log.warning("picker: can't play %s: %s", song_id, exc)
+                brain.publish("brain", {"stage": "error", "error": str(exc)})
+        threading.Thread(target=play, daemon=True).start()
+        self._json(200, {"ok": True})
+
+    def _post_music_step(self, delta: int) -> None:
+        """The mini player's previous / next."""
+        brain = self.app.brain
+
+        def play() -> None:
+            try:
+                song, new = brain.step(delta)
+                if not song:
+                    return brain.publish("brain", {"stage": "error", "error": "no song"})
+                brain.publish("brain", {"stage": "fetch", "text": f"{song['artist']} – {song['title']}".strip(" –")})
+                brain.sing(song, announce=True, remember=new)
+            except (MusicError, OSError) as exc:
+                log.warning("music step %+d: %s", delta, exc)
+                brain.publish("brain", {"stage": "error", "error": str(exc)})
+        threading.Thread(target=play, daemon=True).start()
+        self._json(200, {"ok": True})
 
     def _post_reset(self, query: dict) -> None:
         self.app.brain.reset(everything=query.get("all") == "1")
@@ -650,9 +802,10 @@ def main() -> None:
     server = make_server(cfg)
     app: App = server.app  # type: ignore[attr-defined]
     host, port = server.server_address[:2]
-    log.info("voix : %s · transcription : %s · LLM : %s · chant : %s",
-             app.tts.name, cfg["STT_PROVIDERS"], app.status()["llm"] or "pas de clé Groq", "MDX" if app.stems else "non")
-    log.info("Eli écoute sur http://%s:%s", "127.0.0.1" if host == "0.0.0.0" else host, port)
+    log.info("voice: %s · transcription: %s · LLM: %s · singing: %s · language: %s",
+             app.tts.name, cfg["STT_PROVIDERS"], app.status()["llm"] or "no Groq key", "MDX" if app.stems else "no",
+             app.hub.state["lang"])
+    log.info("Eli listening on http://%s:%s", "127.0.0.1" if host == "0.0.0.0" else host, port)
     try:
         server.serve_forever(poll_interval=0.5)
     except KeyboardInterrupt:

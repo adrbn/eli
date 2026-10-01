@@ -1,4 +1,4 @@
-"""Séparation de la voix : le calcul spectral de MDX, et la livraison bloc par bloc."""
+"""Voice separation: MDX's spectral maths, and block-by-block delivery."""
 import tempfile
 import threading
 import unittest
@@ -11,7 +11,7 @@ from stems import Stems
 
 
 class Identity:
-    """Un « modèle » qui rend son entrée : la voix sortie doit alors être le mix lui-même."""
+    """A "model" that returns its input: the output voice must then be the mix itself."""
 
     def run(self, _outputs, feeds):
         return [feeds["input"]]
@@ -22,7 +22,7 @@ class MdxTest(unittest.TestCase):
         t = np.arange(mdx.CHUNK) / mdx.SR
         x = np.stack([np.sin(2 * np.pi * 440 * t), 0.5 * np.sin(2 * np.pi * 220 * t)]).astype(np.float32)
         y = mdx.istft(mdx.stft(x))
-        core = slice(mdx.TRIM, -mdx.TRIM)  # les bords n'ont que la moitié de leurs fenêtres
+        core = slice(mdx.TRIM, -mdx.TRIM)  # the edges only get half their windows
         self.assertLess(np.abs(y[:, core] - x[:, core]).max(), 1e-3)
 
     def test_blocks_cover_the_whole_song_in_order(self):
@@ -64,7 +64,7 @@ class StemsTest(unittest.TestCase):
             pcm = np.frombuffer(wav[44:], dtype=np.int16)
             self.assertAlmostEqual(len(pcm), 3000, delta=1)
             self.assertAlmostEqual(pcm[2500] / 32767, 0.3, places=2)
-            self.assertTrue(stems.request(Path(tmp) / "a.mp3", "ab" * 32, "c2"))  # en cache : prêt tout de suite
+            self.assertTrue(stems.request(Path(tmp) / "a.mp3", "ab" * 32, "c2"))  # cached: ready right away
 
 
 if __name__ == "__main__":
