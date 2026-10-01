@@ -1,7 +1,7 @@
 """Isolates a song's voice (MDX-Net, see mdx.py), so the face really sings along the vocal track.
 
 The voice comes block by block, faster than playback: each finished block is announced, the page reloads the
-partial voice (silence where it isn't computed yet) and sings as soon as it has it.
+partial voice (only what is computed: past its end the page guesses the mouth from the lyrics) and sings as soon as it has it.
 One song at a time; a new song cuts the previous one, and its separation too.
 The result is cached by file hash: a song already seen sings right away.
 """
@@ -42,6 +42,7 @@ class Stems:
         self.jobs: queue.Queue = queue.Queue()
         self.waiting: dict[str, list[str]] = {}
         self.partial: dict[str, np.ndarray] = {}  # voices being computed, int16 mono 16 kHz
+        self.filled: dict[str, int] = {}  # how many samples of each are computed
         self.lock = threading.Lock()
         threading.Thread(target=self._worker, daemon=True).start()
 
@@ -52,8 +53,8 @@ class Stems:
         """The isolated voice as WAV: complete if cached, otherwise what has been computed so far."""
         with self.lock:
             pcm = self.partial.get(sha)
-            if pcm is not None:
-                return wav_bytes(pcm)
+            if pcm is not None:  # not the silence after: the page would take it for a mute singer
+                return wav_bytes(pcm[: self.filled.get(sha, 0)])
         try:
             return self.path(sha).read_bytes()
         except FileNotFoundError:
@@ -88,6 +89,7 @@ class Stems:
                 error = str(exc)[:300]
             with self.lock:
                 self.partial.pop(sha, None)
+                self.filled.pop(sha, None)
                 ids = self.waiting.pop(sha, None)
             for clip_id in ids or []:  # None: dropped for another song, nobody is waiting any more
                 self.on_ready(clip_id, sha, error)
@@ -108,6 +110,7 @@ class Stems:
                     log.info("voice: %s dropped, another song replaced it", src.name)
                     return
                 pcm[at: at + len(chunk)] = chunk
+                self.filled[sha] = at + len(chunk)
                 ids = list(self.waiting[sha])
             at += len(chunk)
             if k + 1 < total:
@@ -116,3 +119,12 @@ class Stems:
         tmp.write_bytes(wav_bytes(pcm))
         tmp.replace(self.path(sha))
         log.info("voice: isolated for %s", src.name)
+
+
+if __name__ == "__main__":
+    import tempfile
+    s = Stems(None, "ffmpeg", Path(tempfile.mkdtemp()), lambda *_: None)
+    s.partial["x"], s.filled["x"] = np.zeros(OUT_SR * 60, np.int16), OUT_SR * 5
+    assert len(s.audio("x")) == 44 + 2 * OUT_SR * 5, "a partial voice stops where the computing is"
+    assert s.audio("missing") is None
+    print("ok")

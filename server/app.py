@@ -790,8 +790,15 @@ class Handler(BaseHTTPRequestHandler):
         self._json(200, {"ok": True})
 
 
+class Server(ThreadingHTTPServer):
+    def handle_error(self, request, client_address) -> None:
+        if isinstance(sys.exc_info()[1], (BrokenPipeError, ConnectionResetError)):
+            return  # the page hung up before the answer (song skipped, tab closed): nothing went wrong here
+        super().handle_error(request, client_address)
+
+
 def make_server(cfg: dict, port: int | None = None, **app_kwargs) -> ThreadingHTTPServer:
-    server = ThreadingHTTPServer((cfg["HOST"], int(cfg["PORT"]) if port is None else port), Handler)
+    server = Server((cfg["HOST"], int(cfg["PORT"]) if port is None else port), Handler)
     server.daemon_threads = True
     server.app = App(cfg, server.server_address[1], **app_kwargs)  # type: ignore[attr-defined]
     return server

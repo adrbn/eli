@@ -511,11 +511,11 @@ class Brain:
             with self.lock:
                 self.played = [*self.played[: self.place + 1], song][-HISTORY:]
                 self.place = len(self.played) - 1
+        if announce:  # said during the download (~7 s through a VPN): he answers at once, the song follows it
+            self._announce(song)
         data = self.music.fetch(song["id"])
         if ticket != self.song:
             return
-        if announce:
-            self._announce(song)
         title = f"{song['artist']} – {song['title']}".strip(" –")
         self.face.clip(data, "music", title, 0, ctype="audio/mpeg", name=f"{title[:100]}.mp3", genre=song.get("genre"))
 
