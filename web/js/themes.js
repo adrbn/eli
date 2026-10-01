@@ -171,11 +171,14 @@ function dots(opts, lit = pixLit, anchors = pixAnchors) {
 
 // Dessin vectoriel dans un repère fixe (w×h) mis à l'échelle de l'écran. `fade` > 0 : rémanence (oscilloscope).
 // xf = [k, ox, oy] : où tombe le repère 2:1 des extras (notes, tenues) dans ce dessin.
+// Les visages vectoriels n'ont pas d'écran physique à imiter : ils se dessinent sur le fond de la page (--bg), sans cadre.
+const PAGE = [5, 6, 5];
+
 function vector(w, h, draw, fade = 0, xf = [100, 10, 50], anchors = pixAnchors) {
   return (ctx, W, H, f, dt) => {
     const s = Math.min(W / w, H / h);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = fade ? `rgba(0,0,0,${1 - Math.exp(-dt * fade)})` : '#000';
+    ctx.fillStyle = `rgba(${PAGE},${fade ? 1 - Math.exp(-dt * fade) : 1})`;
     ctx.fillRect(0, 0, W, H);
     ctx.setTransform(s, 0, 0, s, (W - w * s) / 2, (H - h * s) / 2);
     if (f.look) { // le décor d'abord, atténué : le visage passe devant
@@ -444,15 +447,15 @@ export const THEMES = [
   { id: 'perles', name: 'Perles', family: 'Pixel', screen: 'rect', note: 'OLED, pixels en croix', make: () => oled(32, 4, PLUS) },
   { id: 'perles-fond', name: 'Perles allumées', family: 'Pixel', screen: 'rect', note: 'LED couleur, fond visible', make: () => dots(() => ({ cols: 28, shape: 'perle', bg: true })) },
   { id: 'grille', name: 'Sur mesure', family: 'Pixel', screen: 'rect', note: 'densité, forme, fond', make: () => dots(getCustom) },
-  { id: 'trait', name: 'Trait', family: 'Trait', screen: 'round', note: 'yeux ronds, lèvres', make: () => vector(220, 220, traitClassic) },
-  { id: 'trait-doux', name: 'Doux', family: 'Trait', screen: 'round', note: 'yeux arrondis pleins', make: () => vector(220, 220, traitSoft(false, false)) },
-  { id: 'trait-contour', name: 'Contour', family: 'Trait', screen: 'round', note: 'tout en contours', make: () => vector(220, 220, traitSoft(true, false)) },
-  { id: 'trait-neon', name: 'Néon', family: 'Trait', screen: 'round', note: 'contours lumineux', make: () => vector(220, 220, traitSoft(true, true)) },
+  { id: 'trait', name: 'Trait', family: 'Trait', screen: 'free', note: 'yeux ronds, lèvres', make: () => vector(220, 220, traitClassic) },
+  { id: 'trait-doux', name: 'Doux', family: 'Trait', screen: 'free', note: 'yeux arrondis pleins', make: () => vector(220, 220, traitSoft(false, false)) },
+  { id: 'trait-contour', name: 'Contour', family: 'Trait', screen: 'free', note: 'tout en contours', make: () => vector(220, 220, traitSoft(true, false)) },
+  { id: 'trait-neon', name: 'Néon', family: 'Trait', screen: 'free', note: 'contours lumineux', make: () => vector(220, 220, traitSoft(true, true)) },
   { id: 'chat-pixel', name: 'Chat pixel', family: 'Chats', screen: 'rect', note: 'OLED, oreilles qui frémissent', make: () => oled(128, 1, [[0, 0]], catLit, catAnchors) },
   { id: 'chat-perles', name: 'Chat perles', family: 'Chats', screen: 'rect', note: 'LED couleur, fond visible', make: () => dots(() => ({ cols: 52, shape: 'perle', bg: true }), catLit, catAnchors) },
-  { id: 'chaton', name: 'Chaton', family: 'Chats', screen: 'round', note: 'grands yeux, joues roses', make: () => vector(220, 220, kitten, 0, [120, -10, 62], catAnchors) },
+  { id: 'chaton', name: 'Chaton', family: 'Chats', screen: 'free', note: 'grands yeux, joues roses', make: () => vector(220, 220, kitten, 0, [120, -10, 62], catAnchors) },
   { id: 'matrice', name: 'Matrice', family: 'Autres', screen: 'round', note: 'LED rondes 19×19', make: matrice },
-  { id: 'oscillo', name: 'Oscillo', family: 'Autres', screen: 'wide', note: 'trace d’oscilloscope', make: () => vector(264, 198, oscillo, 23, [130, 2, 19.6]) },
+  { id: 'oscillo', name: 'Oscillo', family: 'Autres', screen: 'free', note: 'trace d’oscilloscope', make: () => vector(264, 198, oscillo, 23, [130, 2, 19.6]) },
 ];
 
 export const themeById = (id) => THEMES.find((t) => t.id === id);

@@ -47,6 +47,10 @@
   .bezel[data-screen="wide"] { --ratio: 1.3333; }
   #screen { display: block; width: min(calc(100vw - 80px), calc((100dvh - var(--chrome)) * var(--ratio)), 1400px); aspect-ratio: var(--ratio); min-width: 160px; background: #000; border-radius: 6px; transition: width .5s var(--ease); }
   .bezel[data-screen="round"] #screen { border-radius: 50%; }
+  /* visages vectoriels : pas d'écran à imiter, ils prennent toute la place, sans cadre */
+  .bezel[data-screen="free"] { padding: 0; background: none; box-shadow: none; border-radius: 0; }
+  .bezel[data-screen="free"] #screen { width: min(calc(100vw - 32px), 1600px); height: max(160px, calc(100dvh - var(--chrome) + 40px)); aspect-ratio: auto; background: var(--bg); border-radius: 0; }
+  body:is(.bare, [data-layout="widget"]) .bezel[data-screen="free"] #screen { width: 100vw; height: 100dvh; }
   .zzz { position: absolute; top: 4%; right: 6%; display: flex; gap: .15em; color: var(--ink); font: 700 clamp(14px, 2.2vw, 26px) var(--mono); pointer-events: none; opacity: 0; transition: opacity 1.2s; }
   .zzz span { animation: zzz 3.2s ease-in-out infinite; text-shadow: 0 0 10px color-mix(in srgb, var(--green) 50%, transparent); }
   .zzz span:nth-child(2) { animation-delay: .5s; font-size: 1.25em; }
@@ -139,6 +143,7 @@
   .card canvas { display: block; height: 76px; aspect-ratio: 2; max-width: 100%; margin-bottom: 4px; background: #000; border-radius: 4px; }
   .card[data-screen="round"] canvas { aspect-ratio: 1; border-radius: 50%; }
   .card[data-screen="wide"] canvas { aspect-ratio: 1.3333; }
+  .card[data-screen="free"] canvas { aspect-ratio: 1.3333; background: var(--bg); }
   .card .name { font-size: 14px; font-weight: 600; }
   .card .note { font-size: 12px; color: var(--muted); }
   .custom { display: grid; gap: 12px; margin-top: 12px; padding: 14px; border: 1px dashed var(--line-strong); border-radius: var(--radius); }
