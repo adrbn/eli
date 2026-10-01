@@ -1,0 +1,26 @@
+name: Bug report
+description: Something Eli does wrong. The diagnostic makes it fixable.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what Eli did, what you expected.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostic
+    attributes:
+      label: Diagnostic
+      description: >
+        Settings → Developer → Copy diagnostic (or ⌥⌘D in the Mac app), then paste it here. It holds the versions,
+        your settings and both logs. Keys and passwords are masked, but read it before you post.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      description: Browser, Mac app, iPhone app or ESP32, and your OS.

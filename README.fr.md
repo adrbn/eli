@@ -59,9 +59,14 @@ visage passe sur un **ESP32** avec un OLED 128×64 : le cerveau ne parle au visa
 - **Répond en flux.** Le LLM répond en streaming et chaque phrase est dite dès qu'elle est finie : les premiers mots sortent pendant que la suite s'écrit.
 - **Se souvient de toi.** La conversation survit aux redémarrages, et après un moment de calme le LLM la résume dans un carnet de faits durables en texte brut (`memory/souvenirs.md`, un fait par ligne, modifiable à la main).
 - **Se présente.** Au premier lancement, Eli te demande ton prénom et te pose quelques questions pour faire connaissance.
-- **Prononce bien l'anglais.** Les mots anglais entourés de `[en]…[/en]` sont dits avec des phonèmes anglais, dans la même voix : les titres de morceaux ne sortent plus à la française.
+- **Parle français ou anglais.** `ELI_LANG=auto` suit la langue de ton navigateur (Réglages → Langue la force) : personnalité, phrases toutes faites, voix, transcription et mot de réveil changent ensemble.
+- **Prononce bien l'anglais.** En français, les mots anglais entourés de `[en]…[/en]` sont dits avec des phonèmes anglais, dans la même voix : les titres de morceaux ne sortent plus à la française.
 - **Voix de chat, en option.** Un filtre plus aigu, qui ne s'applique que quand un visage de chat est à l'écran.
-- **Mini-lecteur** dans le dock, pour mettre en pause et se déplacer dans le morceau qu'il chante.
+- **Ta bibliothèque musicale.** Branche Navidrome ou n'importe quel serveur Subsonic, puis dis « Eli, mets du Daft Punk » ou choisis un morceau dans le panneau **Musique** (♪ dans le dock) : recherche, pochettes, lecture aléatoire. Eli s'habille selon le genre (lunettes et palmiers pour le tropical, lasers pour l'électro…).
+- **Karaoké.** Pendant qu'il chante, un lecteur sous le visage montre la ligne en cours (paroles synchronisées via [LRCLIB](https://lrclib.net)), la suivante, et permet de mettre en pause, de te déplacer dans le morceau, et de passer au précédent ou au suivant (au-delà du dernier, un morceau au hasard). Il annonce les morceaux que tu choisis (« Voici Maps, de Maroon 5 »), ce qui couvre aussi les quelques secondes que sa voix isolée met à démarrer.
+- **Choisis sa couleur.** Vert, blanc, bleu ou jaune, comme les écrans OLED qu'on trouve dans le commerce, ou n'importe quelle couleur : pratique pour choisir un écran avant de l'acheter.
+- **Une seule voix à la fois.** Ouvre Eli dans un navigateur, l'app Mac et un téléphone : l'écran utilisé en dernier parle, les autres se taisent.
+- **Mode développeur.** Un journal en direct de la page et du serveur, et un diagnostic en un clic (secrets masqués) à coller dans un ticket.
 - **Pilotable depuis le terminal** avec [`./send.sh`](#depuis-le-terminal), par le même protocole que l'ESP32.
 
 <a id="demarrer"></a>
@@ -93,11 +98,21 @@ apps/macos/build.sh          # → apps/macos/build/Eli.app, signée avec ton De
 ```
 
 `Eli.app` lance le serveur si rien ne répond sur le port (et l'arrête en quittant, seulement si c'est elle qui l'a
-lancé), trouve le dépôt quand l'app est rangée dedans, sinon demande le dossier une fois. Trois façons d'afficher
-Eli, cumulables depuis l'icône de la barre des menus : **Fenêtre** (la page complète), **Widget** (un visage
-flottant à poser où tu veux, aimanté aux bords et aux coins ; on le redimensionne par le coin ou en pinçant, un
-double-clic ouvre la fenêtre), **Encoche** (une pastille autour de l'encoche du MacBook qui s'agrandit au survol).
-Un seul parle, les autres l'imitent.
+lancé), trouve le dépôt quand l'app est rangée dedans, sinon demande le dossier une fois. C'est une app comme les
+autres (Dock, menus natifs, pas d'icône dans la barre des menus), et Eli vit à un seul endroit à la fois, depuis le
+menu **Présentation** :
+
+- **Fenêtre** <kbd>⌘1</kbd> : la page complète, sans la bordure.
+- **Flottant** <kbd>⌘2</kbd> : juste le visage, au-dessus de tes fenêtres ; tu le déplaces où tu veux, il s'aimante
+  aux bords et aux coins, se redimensionne par le coin ou en pinçant, un double-clic ouvre la fenêtre.
+- **Encoche** <kbd>⌘3</kbd> : sur un MacBook à encoche, Eli s'y installe. Survole pour avoir le champ de texte, les
+  commandes du morceau, les paroles et les réglages.
+
+Fermer la fenêtre envoie Eli dans l'encoche (ou dans le visage flottant sur les Mac sans encoche) ; <kbd>⌘Q</kbd>
+quitte. Le menu **Musique** ouvre la bibliothèque (<kbd>⌘B</kbd>), lance/met en pause (<kbd>⌘P</kbd>), passe au
+morceau précédent ou suivant, arrête le morceau ou juste sa voix (<kbd>⌘.</kbd>). Le menu **Développeur** active le
+mode développeur, copie le diagnostic (<kbd>⌥⌘D</kbd>), ouvre le journal du serveur ou la page dans ton navigateur,
+et recharge.
 La sortie du serveur va dans `~/Library/Logs/Eli/server.log` ; autre port : `defaults write com.adrbn.eli.mac port 5281`.
 Garde `HOST` sur `127.0.0.1` ou `0.0.0.0` : l'app parle à `127.0.0.1`.
 
@@ -120,14 +135,36 @@ micro de marcher en http simple. Appui long à deux doigts pour changer d'adress
 | Bouger la souris | Son regard te suit (c'est le capteur, simulé) |
 | <kbd>←</kbd> / <kbd>→</kbd> | Visage précédent / suivant |
 | <kbd>V</kbd> | Galerie des visages, avec les réglages du « Sur mesure » |
+| <kbd>M</kbd> | Panneau Musique : recherche dans ta bibliothèque, lecture aléatoire, réglages du serveur |
 | <kbd>P</kbd> | Lecture / pause du morceau |
 | <kbd>↑</kbd> / <kbd>↓</kbd> | Rappelle les messages déjà envoyés, comme dans un terminal |
-| <kbd>Échap</kbd> | Ferme les panneaux et le fait taire (le morceau continue) |
+| <kbd>Échap</kbd> | Ferme les panneaux et le fait taire (le morceau continue, même s'il télécharge encore) |
+| Clic hors d'un panneau | Le ferme |
 | Ne rien faire pendant 2 min | Il somnole, puis s'endort une minute plus tard ; n'importe quoi le réveille |
 
-Le panneau **Réglages** (en bas à droite) donne l'avance de la bouche sur le son, le volume, le choix de la voix, la
-voix de chat, les sous-titres, le regard à la souris, les bruits du sommeil, « Couper la parole », « Oublier la
-conversation », son carnet de souvenirs, « Faire connaissance » et « Tout oublier ».
+Le panneau **Réglages** (en bas à droite) donne la langue, l'avance de la bouche sur le son, le volume, le choix de la
+voix, la voix de chat, la couleur d'Eli, les sous-titres, le regard à la souris, les bruits du sommeil, les tenues
+selon le genre, les notes de musique, le point du matin, « Couper la parole », « Oublier la conversation », son
+carnet de souvenirs, « Faire connaissance » (relance les présentations), « Tout oublier » et le mode développeur.
+
+## Ta musique (Navidrome / Subsonic)
+
+Eli joue depuis ta propre bibliothèque via l'[API Subsonic](https://www.subsonic.org/pages/api.jsp) : ça marche avec
+[Navidrome](https://www.navidrome.org), Airsonic, Gonic ou n'importe quel serveur compatible Subsonic.
+
+1. Ouvre le panneau **Musique** (♪ dans le dock, <kbd>M</kbd>, ou demande simplement « Eli, mets du jazz » : la
+   première fois, il l'ouvre pour toi).
+2. Entre l'adresse du serveur (`http://ton-serveur:4533`), l'utilisateur et le mot de passe. Eli les vérifie avec
+   `ping`, puis ne garde qu'un jeton salé (`md5(mot de passe + sel)`, comme le veut le protocole Subsonic) dans
+   `local/navidrome.json`, jamais le mot de passe. Le jeton reste sur le serveur : la page récupère les pochettes et
+   les morceaux par Eli, pas directement depuis Navidrome.
+3. Cherche par titre, artiste ou album, ou clique sur **Aléatoire** ; clique un morceau et Eli le chante. À la voix,
+   « Eli, mets Get Lucky » ou « mets du Daft Punk » marchent aussi, y compris les duos (« Arijit Singh et Martin
+   Garrix »).
+
+La section **Serveur** affiche l'adresse, le compte et la version du serveur, **Tester** mesure l'aller-retour, et
+**Déconnecter** supprime le jeton. Les morceaux sont diffusés sur ton réseau, donc une liaison lente (un téléphone en
+partage de connexion via Tailscale, par exemple) veut dire quelques secondes avant qu'il démarre.
 
 <a id="visages"></a>
 
@@ -193,7 +230,7 @@ flowchart LR
 - **Serveur** (`server/`, Python bibliothèque standard + Piper + onnxruntime) : `app.py` tient le protocole de l'écran, `brain.py` la boucle micro → transcription → LLM → voix, `voice.py` Piper (repli : `say` de macOS), `stems.py` + `mdx.py` l'isolation de la voix, `memory.py` la conversation et le carnet, `meow.py` les miaous synthétisés.
 - **Lip sync** (`web/js/analysis.js`, dans un worker) : chaque clip est analysé en entier avant d'être joué. Cinq bandes de fréquences donnent, 100 fois par seconde, l'ouverture, la largeur, l'arrondi (o, ou) et les dents (s, ch, f). Quand la voix fournit les durées des phonèmes (Piper le fait), des visèmes construits dessus prennent le relais. La bouche lit la piste au temps que tu *entends* (latence de sortie comprise), avec 50 ms d'avance comme un vrai locuteur.
 - **Regard** (`web/js/face.js`) : il détourne les yeux en commençant une phrase, revient sur toi en la finissant, cligne dans les pauses, fait de petites saccades. Sans capteur, des yeux au centre regardent tout le monde à la fois.
-- **Musique** : tempo et temps forts viennent du flux spectral et d'une autocorrélation. Pendant ce temps, MDX-Net (Kim_Vocal_2 d'UVR, en ONNX, sur le CPU) isole la voix bloc par bloc, plus vite que la lecture : il chante dès la première écoute. Les notes aiguës font monter et plisser les yeux, les graves font plonger le regard. Le résultat est mis en cache par empreinte du fichier.
+- **Musique** : tempo et temps forts viennent du flux spectral et d'une autocorrélation. Pendant ce temps, MDX-Net (Kim_Vocal_2 d'UVR, en ONNX, sur le CPU) isole la voix bloc par bloc pendant que le morceau joue (à peu près à la vitesse de lecture sur un M1) : il chante dès la première écoute. Les notes aiguës font monter et plisser les yeux, les graves font plonger le regard. Le résultat est mis en cache par empreinte du fichier.
 - **Bruits du sommeil** (`web/js/sleep.js`) : ronflement et ronronnement sont synthétisés dans le navigateur, calés sur la respiration du visage.
 
 <a id="protocole"></a>
@@ -218,7 +255,9 @@ GET  /clips/<id>, /stems/<empreinte>.wav          octets audio (/clips/<id>?comp
 ```
 
 Événements SSE : `hello` (état complet à la connexion), `clip`, `stem` (voix isolée d'un morceau, bloc par bloc),
-`state`, `gaze`, `theme`, `voice`, `stop` et `brain` (étapes de la conversation, pour l'affichage).
+`lyrics` (paroles synchronisées d'un morceau), `genre` (sa tenue), `state`, `gaze`, `theme`, `voice`, `lang`, `take`,
+`music`, `setup`, `stop` et `brain` (étapes de la conversation, pour l'affichage : `stt`, `heard`, `llm`, `music`,
+`fetch`, `done`, `error`).
 
 **Les tours.** Chaque réponse du cerveau commence par `POST /stop {"turn": N}`. L'écran se tait et jette les clips
 encore en route des tours précédents : une réponse interrompue ne revient jamais parler par-dessus la suivante.
@@ -233,7 +272,17 @@ POST /brain/reset    (?all=1 : le carnet aussi)   oublie la conversation
 POST /brain/intro                             les présentations
 POST /brain/meow                              un miaou (visages de chat)
 POST /voice          {"id": "…"} / {"cat": true}   choisit une voix / active la voix de chat
+POST /lang           {"lang": "en|fr"}        la langue de la page (voix, présentations, point du matin)
+POST /take           {"client": "…"}          cet écran parle maintenant, les autres se taisent (événement « take »)
 GET  /api/status, /api/voices, /api/memory
+GET  /api/logs?after=N                        les dernières lignes du journal serveur (mode développeur)
+
+POST /music/setup    {"url", "user", "password"}   connecte un serveur Subsonic (seul un jeton est gardé)
+POST /music/forget   POST /music/ping              déconnecte / teste le serveur
+POST /music/play     {"id": "…"}             chante ce morceau de la bibliothèque (il l'annonce d'abord)
+POST /music/prev     POST /music/next          les morceaux chantés, dans un sens ou l'autre (un au hasard au-delà du dernier)
+GET  /api/music, /api/music/songs?q=…        statut / recherche (q vide = morceaux au hasard)
+GET  /music/cover/<id>                       pochette, en relais
 ```
 
 Le serveur n'écoute que sur `127.0.0.1`. Pour un ESP32 sur ton réseau, `HOST=0.0.0.0` ; les noms d'hôte inconnus et
@@ -266,18 +315,20 @@ Tout est dans `.env` (modèle : [`.env.example`](.env.example)). Il faut un cerv
 | `GROQ_API_KEY` | | transcription et LLM |
 | `STT_PROVIDERS` | `groq,echo` | ordre des moteurs de transcription, le suivant prend le relais en cas d'échec |
 | `ECHO_URL`, `ECHO_API_KEY` | | ton propre serveur `/v1/audio/transcriptions` au format OpenAI (Parakeet à la maison, par ex.) |
-| `STT_LANGUAGE` | `fr` | langue de la transcription |
+| `ELI_LANG` | `auto` | la langue d'Eli : `fr`, `en`, ou `auto` (celle du navigateur de la page ; Réglages → Langue la force) |
+| `STT_LANGUAGE` | *(suit `LANG`)* | langue de la transcription, s'il faut qu'elle diffère |
 | `LLM_MODEL`, `LLM_FALLBACK_MODEL` | `openai/gpt-oss-120b`, `openai/gpt-oss-20b` | modèles Groq |
 | `LLM_URL`, `LLM_API_KEY` | | un cerveau local compatible OpenAI à la place (mlx_lm.server, Ollama…) |
-| `TTS`, `SAY_VOICE` | `piper`, `Thomas` | voix de départ ; elle se change à chaud dans Réglages |
+| `TTS`, `SAY_VOICE` | `piper`, `Thomas` | voix de départ (Siwis en français, Kristin en anglais) ; elle se change à chaud dans Réglages, un choix par langue |
 | `SEPARATOR_MODEL` | `voices/Kim_Vocal_2.onnx` | le modèle qui isole la voix |
 | `HOST`, `PORT` | `127.0.0.1`, `5280` | où le serveur écoute |
 | `FACE_URL` | *(ce serveur)* | où le cerveau envoie ses clips : plus tard, l'ESP32 |
 | `BRIEF_CITY` | | ville de la météo du point du matin (Open-Meteo, sans clé) |
 | `ALLOWED_HOSTS` | | noms servis en plus des IP et de localhost (ex. derrière `tailscale serve`) |
-| `NAVIDROME_URL`, `_USER`, `_PASSWORD` | | ta bibliothèque musicale ; plus simple depuis Réglages → Musique |
+| `NAVIDROME_URL`, `_USER`, `_PASSWORD` | | ta bibliothèque musicale ; plus simple depuis le panneau Musique |
+| `LYRICS` | `on` | paroles synchronisées via LRCLIB pendant qu'il chante (`off` = ne jamais les demander) |
 
-La personnalité d'Eli est dans `DEFAULT_PERSONA` (`server/brain.py`) ; crée un `persona.txt` à la racine pour la remplacer.
+La personnalité d'Eli est dans `DEFAULT_PERSONA` (`server/brain.py`, une par langue) ; crée un `persona.txt` à la racine pour la remplacer (il sert dans les deux langues, et Eli reçoit la consigne de la langue où répondre).
 
 ## Sur un serveur maison (Docker)
 
@@ -289,7 +340,7 @@ git clone https://github.com/adrbn/eli && cd eli
 cp .env.example .env              # mets ta GROQ_API_KEY dedans
 mkdir -p voices memory cache local  # créés par toi, pour que le conteneur (uid 1000) puisse y écrire
 docker compose up -d --build
-docker compose logs -f            # attends « voix : piper · Siwis » puis « Eli écoute sur … »
+docker compose logs -f            # attends « voice: piper · Siwis » puis « Eli listening on … »
 ```
 
 - Le premier démarrage télécharge la voix Piper et le modèle qui isole les voix (~130 Mo) dans `voices/`. Si tu viens
@@ -356,13 +407,19 @@ essayé sur du matériel.** La musique (MP3) n'est pas jouée sur la carte.
 - [x] Chant sur la voix isolée, danse sur le tempo
 - [x] Mémoire qui se consolide, présentations au premier lancement
 - [x] Visages de chat, miaous, ronronnements
-- [ ] Karaoké avec paroles synchronisées (LRCLIB)
+- [x] Karaoké avec paroles synchronisées (LRCLIB)
 - [x] Mot de réveil : dis « Eli, … » sans les mains (filtre local Vosk, puis tes oreilles confirment ; Réglages → écoute permanente)
 - [x] Émotions : le LLM balise ses phrases ([joie], [colère]…) et les yeux et la bouche les jouent
 - [x] « Eli, mets du Daft Punk » : ta bibliothèque Navidrome/Subsonic ; Eli ouvre le bon formulaire la première fois
+- [x] Panneau Musique : recherche, pochettes, lecture aléatoire, test et déconnexion du serveur
+- [x] Tenues selon le genre, avec des fonds qui restent derrière le visage
 - [x] Cerveau local : tout serveur compatible OpenAI (`LLM_URL`, par ex. mlx_lm.server ou Ollama)
 - [x] Version serveur maison (Docker)
-- [ ] Le point du matin
+- [x] Le point du matin
+- [x] Français et anglais, interface comprise
+- [x] App Mac native (fenêtre, flottant, encoche) et app iPhone
+- [x] Mode développeur : journaux en direct et diagnostic pour les rapports de bug
+- [x] Choisis la couleur d'Eli
 - [ ] Version ESP32 + cou motorisé (servo)
 - [ ] Plusieurs Eli qui se parlent entre eux
 
@@ -384,9 +441,11 @@ Groq par défaut : ta question enregistrée (pour la transcription) et la conver
 
 <br>
 
-Pas encore en entier : Eli est pensé en français (interface, voix, personnalité). Les mots anglais au milieu d'une
-phrase sont bien prononcés grâce aux balises `[en]`. Un vrai mode anglais demanderait une voix Piper anglaise, une
-personnalité en anglais et `STT_LANGUAGE=en`.
+Oui : mets `ELI_LANG=en` (ou garde `ELI_LANG=auto` avec un navigateur en anglais, ou choisis-le dans Réglages → Langue). Eli
+répond alors en anglais avec une voix Piper anglaise (Kristin par défaut, ~60 Mo, téléchargée au premier passage),
+transcrit en anglais et se réveille sur « Eli » avec le modèle Vosk anglais. Si ton `.env` dit encore
+`STT_LANGUAGE=fr`, vide-le pour que la transcription suive la langue. En français, les mots anglais au milieu d'une
+phrase sont bien prononcés grâce aux balises `[en]`.
 
 </details>
 
@@ -428,10 +487,20 @@ Il est développé et testé sur macOS. Le serveur est du Python standard et Pip
 
 - Le premier appui sur <kbd>Espace</kbd> ouvre le micro et peut manger la première syllabe ; le micro reste ensuite ouvert 30 s.
 - Fenêtre cachée ou réduite : l'animation se fige (le son continue).
-- Un seul onglet parle à la fois dans un même navigateur ; une page Safari et une page Chrome ouvertes ensemble parleraient toutes les deux.
+- Certains morceaux n'ont pas de paroles synchronisées sur LRCLIB : le lecteur affiche alors juste le titre.
+- L'isolation de la voix tourne à peu près à la vitesse de lecture sur un M1, plus lentement si le Mac est occupé. En
+  attendant qu'elle rattrape, sa bouche suit les paroles synchronisées et le volume du morceau (donc pas de paroles +
+  pas encore de voix isolée = bouche fermée).
 - La capture micro passe par `ScriptProcessor` : déprécié mais présent partout, à remplacer par un `AudioWorklet`.
 
 </details>
+
+## Signaler un bug
+
+Réglages → Mode développeur affiche un journal en direct de la page et du serveur. **Copier le diagnostic** (ou
+<kbd>⌥⌘D</kbd> dans l'app Mac) met les versions, les réglages et les deux journaux dans le presse-papiers, avec les
+clés et mots de passe masqués : colle-le dans un
+[rapport de bug](https://github.com/adrbn/eli/issues/new?template=bug.yml).
 
 ## Tests
 
@@ -447,7 +516,9 @@ Les illustrations de ce README sont générées à partir du code des visages : 
 [MIT](LICENSE) © 2026 adrbn
 
 Téléchargés au premier lancement, sous leurs propres conditions : la voix Siwis de [Piper](https://github.com/rhasspy/piper)
-(SIWIS French Speech Synthesis Database, CC BY 4.0), le petit modèle français de [Vosk](https://alphacephei.com/vosk/models)
+(SIWIS French Speech Synthesis Database, CC BY 4.0), la voix anglaise Kristin de Piper (entraînée sur des
+enregistrements LibriVox, domaine public ; les autres voix anglaises proposées, Cori, Norman, John et Joe, sont aussi
+dans le domaine public ou CC0), les petits modèles français et anglais (US) de [Vosk](https://alphacephei.com/vosk/models)
 (Apache 2.0), et le modèle d'isolation de voix Kim_Vocal_2 d'UVR (aucune licence indiquée par ses auteurs ;
 `SEPARATOR_MODEL=off` pour s'en passer). Météo : [Open-Meteo.com](https://open-meteo.com/) (CC BY 4.0), gratuite pour
 un usage non commercial.
