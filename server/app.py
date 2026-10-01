@@ -797,7 +797,10 @@ def make_server(cfg: dict, port: int | None = None, **app_kwargs) -> ThreadingHT
 
 
 def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s · %(message)s", datefmt="%H:%M:%S")
+    # force: RING is already on the root logger, so a plain basicConfig would do nothing (level stuck at WARNING,
+    # no INFO line in the terminal nor in the page's log drawer)
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s · %(message)s", datefmt="%H:%M:%S",
+                        handlers=[logging.StreamHandler(), RING], force=True)
     cfg = load_config()
     server = make_server(cfg)
     app: App = server.app  # type: ignore[attr-defined]

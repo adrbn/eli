@@ -6,15 +6,15 @@ const TAU = 2 * Math.PI;
 
 export const GREEN = '#46ff86';
 export const LOOKS = {
-  tropical: { name: 'Tropical', color: '#4ff0dc', acc: 'shades', scene: 'palms' },
-  electro: { name: 'Électro', color: '#ff5ae0', acc: 'shutters', scene: 'lasers' },
-  rock: { name: 'Rock', color: '#ff5a46', acc: 'mohawk', scene: 'bolts' },
-  rap: { name: 'Rap', color: '#ffd23c', acc: 'cap', scene: null },
-  jazz: { name: 'Jazz', color: '#64aaff', acc: 'beret', scene: null },
-  classique: { name: 'Classique', color: '#f0ecd2', acc: 'monocle', scene: null },
-  country: { name: 'Country', color: '#ffa03c', acc: 'stetson', scene: 'cactus' },
-  chill: { name: 'Chill', color: '#b4a0ff', acc: 'phones', scene: 'moon' },
-  pop: { name: 'Pop', color: GREEN, acc: 'phones', scene: null },
+  tropical: { name: 'Tropical', acc: 'shades', scene: 'palms' },
+  electro: { name: 'Électro', acc: 'shutters', scene: 'lasers' },
+  rock: { name: 'Rock', acc: 'mohawk', scene: 'bolts' },
+  rap: { name: 'Rap', acc: 'cap', scene: null },
+  jazz: { name: 'Jazz', acc: 'beret', scene: null },
+  classique: { name: 'Classique', acc: 'monocle', scene: null },
+  country: { name: 'Country', acc: 'stetson', scene: 'cactus' },
+  chill: { name: 'Chill', acc: 'phones', scene: 'moon' },
+  pop: { name: 'Pop', acc: 'phones', scene: null },
 };
 
 // Repères du visage pixel (pixLit) et du chat (catLit), dans le repère 2:1.

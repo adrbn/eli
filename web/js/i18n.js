@@ -172,6 +172,7 @@ export const EN = {
   'musique': 'music',
   'Lecture': 'Play',
   'Je t’écoute… (relâche pour envoyer)': 'Listening… (release to send)',
+  'Je t’écoute… (reclique pour envoyer)': 'Listening… (click again to send)',
   'Trop court : maintiens pendant que tu parles.': 'Too short: hold while you talk.',
   'J’envoie…': 'Sending…',
   'Oui ? Je t’écoute…': 'Yes? I’m listening…',

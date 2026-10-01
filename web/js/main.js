@@ -26,7 +26,7 @@ const APP = params.get('app');
 if (APP) document.body.classList.add('app', `app-${APP}`);
 document.body.dataset.layout = 'window';
 const native = (msg) => window.webkit?.messageHandlers?.eli?.postMessage(msg);
-const MAX_PTT_MS = 30000;
+const MAX_PTT_MS = 30000, TAP_MS = 300;
 const FOLLOW_MS = 6000; // après « Eli » seul, le temps qu'il t'écoute avant de laisser tomber
 
 // Réglages retenus par ce navigateur ; le stockage peut être indisponible (navigation privée) : on s'en passe.
@@ -94,7 +94,7 @@ let theme = themeById(store.get('theme', 'pixel')) || THEMES[0];
 let draw = theme.make();
 let online = false, info = null, statusText = '';
 let serverMode = 'idle', serverGaze = null, mouseGaze = null, minTurn = 0;
-let ptt = false, pttTimer = 0, passive = false, moodUntil = 0;
+let ptt = false, pttTimer = 0, pttAt = 0, latched = false, passive = false, moodUntil = 0;
 let lastItem = null, lastAt = 0, holdUntil = 0, captionUntil = 0;
 
 // --- messages à l'utilisateur ---------------------------------------------------------------
@@ -599,9 +599,14 @@ el.nowSeek.addEventListener('change', () => {
   if (m) player.seek(m, Number(el.nowSeek.value) * m.buffer.duration);
 });
 
+// Maintenir = parler tant qu'on tient ; un simple clic = micro ouvert jusqu'au clic suivant.
 async function pttStart() {
-  if (ptt) return;
+  if (ptt) {
+    if (latched) pttEnd();
+    return;
+  }
   ptt = true;
+  pttAt = performance.now();
   el.mic.classList.add('on');
   face.wake();
   showDock();
@@ -615,7 +620,7 @@ async function pttStart() {
       mic.stop(); // relâché pendant l'ouverture du micro
       return;
     }
-    note(t('Je t’écoute… (relâche pour envoyer)'));
+    note(latched ? t('Je t’écoute… (reclique pour envoyer)') : t('Je t’écoute… (relâche pour envoyer)'));
     pttTimer = setTimeout(pttEnd, MAX_PTT_MS);
   } catch (err) {
     ptt = false;
@@ -624,9 +629,19 @@ async function pttStart() {
   }
 }
 
+function pttRelease() {
+  if (ptt && !latched && performance.now() - pttAt < TAP_MS) {
+    latched = true;
+    note(t('Je t’écoute… (reclique pour envoyer)'));
+    return;
+  }
+  pttEnd();
+}
+
 async function pttEnd() {
   if (!ptt) return;
   ptt = false;
+  latched = false;
   clearTimeout(pttTimer);
   el.mic.classList.remove('on');
   const buffer = mic.stop();
@@ -819,7 +834,7 @@ function frame(now) {
   const s = sense(now), f = face.update(dt, s);
   f.notes = notes.update(dt, settings.notes && s.mode === 'sing', s.beat);
   f.look = lookFor(s.mode === 'sing' ? s.song : null);
-  const nextInk = mixColor(ink, LOOKS[f.look]?.color || settings.color, 1 - Math.exp(-dt * 3));
+  const nextInk = mixColor(ink, settings.color, 1 - Math.exp(-dt * 3)); // la tenue habille, elle ne repeint pas : Eli garde sa couleur
   if (nextInk !== ink) document.documentElement.style.setProperty('--ink', nextInk); // les paroles et le lecteur prennent sa couleur
   ink = nextInk;
   setInk(ink);
@@ -905,14 +920,14 @@ addEventListener('keydown', (e) => {
 addEventListener('keyup', (e) => {
   if (e.code !== 'Space') return;
   if (!isField(e.target)) e.preventDefault(); // sinon Espace « clique » le bouton qui a le focus
-  pttEnd();
+  pttRelease();
 });
 
 el.mic.addEventListener('pointerdown', (e) => {
   el.mic.setPointerCapture(e.pointerId);
   pttStart();
 });
-el.mic.addEventListener('pointerup', pttEnd);
+el.mic.addEventListener('pointerup', pttRelease);
 el.mic.addEventListener('pointercancel', pttEnd);
 el.mic.addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -1019,6 +1034,15 @@ function setDev(on) {
   if (on) devlog.openDrawer($('#devlog-list'));
   else devlog.closeDrawer();
 }
+function copyByHand(text) {
+  const area = Object.assign(document.createElement('textarea'), { value: text, readOnly: true });
+  area.style.cssText = 'position:fixed;top:0;opacity:0';
+  document.body.append(area);
+  area.select();
+  const ok = document.execCommand('copy');
+  area.remove();
+  if (!ok) throw new Error('copy refused');
+}
 async function copyDiagnostic() {
   const text = await devlog.diagnostic({
     version: info?.version || '?', app: APP || 'web', layout: document.body.dataset.layout, page: location.pathname,
@@ -1026,7 +1050,7 @@ async function copyDiagnostic() {
   });
   try {
     if (APP) native({ type: 'copy', text });
-    else await navigator.clipboard.writeText(text);
+    else await navigator.clipboard.writeText(text).catch(() => copyByHand(text)); // refusé si la page n'a pas le focus
     toast(t('Diagnostic copié : relis-le, puis colle-le dans l’issue.'));
   } catch {
     toast(t('Copie refusée par le navigateur : ouvre le journal et sélectionne le texte.'));
