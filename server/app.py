@@ -324,6 +324,7 @@ class App:
             "stems": bool(self.stems),
             "turn": self.brain.turn,
             "version": VERSION,  # a page that (re)connects knows which clips are stale
+            "pages": len(self.hub.clients),  # open faces: run.sh opens a tab only if none came back
             "lang_setting": self.cfg.get("ELI_LANG", "auto"),  # ELI_LANG in .env; the page's choice wins over it
             **self.hub.state,  # incl. "lang", the language Eli speaks now
         }
