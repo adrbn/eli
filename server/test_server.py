@@ -17,6 +17,7 @@ from pathlib import Path
 
 from app import FFMPEG, KEEP_RECENT, load_config, make_server, prune
 from brain import Brain, SentenceSplitter, clean_for_tts, multipart
+from navidrome import Navidrome
 
 
 def tiny_wav(seconds: float = 0.2) -> bytes:
@@ -108,6 +109,9 @@ class ServerTest(unittest.TestCase):
         cfg.update(HOST="127.0.0.1", GROQ_API_KEY="", FACE_URL="", MEMORY_DIR="")  # jamais la vraie mémoire
         cls.server = make_server(cfg, port=0, tts=FakeTTS(), with_stems=False)
         cls.base = f"http://127.0.0.1:{cls.server.server_address[1]}"
+        cls.tmp = tempfile.TemporaryDirectory()  # jamais le vrai local/navidrome.json
+        app = cls.server.app
+        app.music = app.brain.music = Navidrome(Path(cls.tmp.name) / "navidrome.json", {})
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
         cls.events: list[tuple[str, dict]] = []
         threading.Thread(target=cls._listen, daemon=True).start()
@@ -116,6 +120,7 @@ class ServerTest(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         cls.server.shutdown()
+        cls.tmp.cleanup()
 
     @classmethod
     def _listen(cls):
@@ -211,6 +216,30 @@ class ServerTest(unittest.TestCase):
         self.assertTrue(body["wake"] and body["turn"])
         self.wait_for("brain", lambda d: d.get("stage") == "heard" and d["text"] == "Hé Eli, dis bonjour.")
 
+    def test_mood_tags_reach_the_face_unspoken(self):
+        brain = self.server.app.brain
+        brain.cancel()
+        songs: list[str] = []
+        brain._sentence(brain.turn, "[joie] Trop bien ! [musique: Daft Punk]", [], songs)
+        clip = self.wait_for("clip", lambda d: d["text"] == "Trop bien !")
+        self.assertEqual((clip["mood"], songs), ("joie", ["Daft Punk"]))
+        code, meta = self.post("/clip?kind=speech", tiny_wav(), "audio/wav", {"X-Mood": "rage"})  # inconnue : ignorée
+        self.assertNotIn("mood", self.wait_for("clip", lambda d: d["id"] == meta["id"]))
+
+    def test_music_without_library_opens_the_form(self):
+        brain = self.server.app.brain
+        brain.cancel()
+        brain._play(brain.turn, "Daft Punk")
+        self.wait_for("setup", lambda d: d["need"] == "navidrome")
+        with urllib.request.urlopen(self.base + "/api/music") as r:
+            self.assertFalse(json.loads(r.read())["configured"])
+        code, body = self.post("/music/setup", json.dumps({"url": "ftp://x", "user": "u", "password": "p"}).encode())
+        self.assertEqual(code, 400)
+        code, _ = self.post("/music/setup", json.dumps({"url": "http://127.0.0.1:9", "user": "u", "password": "p"}).encode())
+        self.assertEqual(code, 400)  # injoignable : rien n'est enregistré
+        self.assertFalse(Path(self.tmp.name, "navidrome.json").exists())
+        self.assertEqual(self.post("/music/forget")[1]["configured"], False)
+
     def test_human_stop_cancels_the_turn(self):
         self.assertEqual(self.post("/stop")[0], 200)
         self.wait_for("stop", lambda d: d["turn"] == self.server.app.brain.turn)
@@ -231,6 +260,20 @@ class ServerTest(unittest.TestCase):
     def test_blocks_other_sites(self):
         code, _ = self.post("/brain/speak", json.dumps({"text": "pirate"}).encode(), headers={"Origin": "https://evil.example"})
         self.assertEqual(code, 403)
+
+    def test_domain_names_need_allowed_hosts(self):
+        def status(host):
+            req = urllib.request.Request(self.base + "/api/status", headers={"Host": host})
+            try:
+                return urllib.request.urlopen(req).status
+            except urllib.error.HTTPError as err:
+                return err.code
+        self.assertEqual(status("eli.tail1.ts.net"), 403)
+        self.server.app.cfg["ALLOWED_HOSTS"] = "eli.tail1.ts.net"
+        try:
+            self.assertEqual(status("eli.tail1.ts.net"), 200)
+        finally:
+            self.server.app.cfg["ALLOWED_HOSTS"] = ""
 
     def test_no_path_traversal(self):
         with self.assertRaises(urllib.error.HTTPError) as err:

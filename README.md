@@ -245,6 +245,55 @@ Everything lives in `.env` (template: [`.env.example`](.env.example)). Only `GRO
 
 Eli's personality is `DEFAULT_PERSONA` in `server/brain.py`; drop a `persona.txt` at the repo root to replace it.
 
+## Run it on a home server (Docker)
+
+The same server runs on a NAS or a mini PC (Linux, amd64 or 64-bit arm64), and every phone, tablet or laptop at home
+opens the face in its browser.
+
+```bash
+git clone https://github.com/adrbn/eli && cd eli
+cp .env.example .env              # put your GROQ_API_KEY in it
+mkdir -p voices memory cache local  # created by you, so the container (uid 1000) can write to them
+docker compose up -d --build
+docker compose logs -f            # wait for "voix : piper · Siwis" then "Eli écoute sur …"
+```
+
+- The first start downloads the Piper voice and the vocal-separation model (~130 MB) into `voices/`. Coming from a Mac,
+  copy your `memory/` folder over first (and `voices/` to skip the downloads): Eli picks up where it left off.
+- Not uid 1000 on the host? Add `ELI_UID=…` and `ELI_GID=…` (from `id -u` and `id -g`) to `.env`.
+- Keep `TTS=piper`, and delete `voices/choix.txt` if it names a `say:` voice: macOS voices don't exist on Linux.
+- **Singing is CPU-heavy**: isolating a song's vocals runs an ONNX model on 4 threads that peaks around 2.5 GB of RAM
+  (an M1 takes ~0.8× the song's length; a small CPU can fall behind playback). `SEPARATOR_MODEL=off` in `.env` turns
+  it off (Eli still dances), and the memory limit in `compose.yaml` can then come down to 1 GB.
+- Eli has **no login**: anyone who reaches the port can make it talk and read its notebook. Keep it on your LAN or VPN,
+  never port-forward it to the internet.
+
+**From a phone or tablet**, open `http://<server-ip>:5280`, on the LAN or through a VPN such as Tailscale or WireGuard.
+Use the IP address: Eli only answers to IP addresses and `localhost` (a guard against DNS rebinding), so a hostname like
+`nas.local` gets a 403.
+
+Over plain `http://`, everything works except the **microphone** (hold-to-talk and the wake word): browsers only allow
+`getUserMedia` in a secure context, meaning HTTPS or `localhost`. You can still type. For the microphone, put HTTPS in
+front of Eli, on the same IP:
+
+- **A reverse proxy with TLS**, for instance [Caddy](https://caddyserver.com) with its own local certificate authority.
+  It keeps the browser's `Host` header, which Eli checks against `Origin`:
+
+  ```caddy
+  # your server's LAN or VPN IP; reverse_proxy eli:5280 if Caddy runs in the same compose project
+  https://192.168.1.50:5443 {
+      tls internal
+      reverse_proxy 127.0.0.1:5280
+  }
+  ```
+
+  Then install Caddy's root certificate (`pki/authorities/local/root.crt` in Caddy's data folder) on each device once
+  and trust it, and open `https://192.168.1.50:5443`.
+- **`tailscale serve`** gives a real certificate with no setup, on a `*.ts.net` hostname. Eli only serves IP addresses
+  and `localhost` by default (DNS-rebinding guard), so name it in `.env`: `ALLOWED_HOSTS=eli.your-tailnet.ts.net`.
+- For a quick test, Chrome (desktop and Android) can treat one origin as secure:
+  `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.
+
 ## Towards the ESP32
 
 - **Board**: ESP32-S3 with PSRAM (audio buffers), a MAX98357A I2S amp and a small speaker.
@@ -261,6 +310,10 @@ Eli's personality is `DEFAULT_PERSONA` in `server/brain.py`; drop a `persona.txt
 - [x] Cat faces, meows, purring
 - [ ] Karaoke with synced lyrics (LRCLIB)
 - [x] Wake word: say "Eli, …" hands-free (local Vosk gate, then your STT confirms; Settings → always listening)
+- [x] Emotions: the LLM tags its sentences ([joie], [colère]…) and the eyes and mouth act them out
+- [x] "Eli, play some Daft Punk": your Navidrome/Subsonic library; Eli opens the right settings form the first time
+- [x] Local brain: any OpenAI-compatible server (`LLM_URL`, e.g. mlx_lm.server or Ollama)
+- [x] Home-server version (Docker)
 - [ ] Morning brief
 - [ ] ESP32 build + servo neck
 - [ ] Several Elis talking to each other

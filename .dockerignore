@@ -1,0 +1,8 @@
+# Allowlist: only what the image needs. Keeps .env, memory/, voices/ and cache/ out of the build context.
+*
+!pyproject.toml
+!uv.lock
+!server/
+!web/
+!deploy/entrypoint.sh
+**/__pycache__

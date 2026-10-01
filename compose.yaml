@@ -1,0 +1,29 @@
+# Eli on a home server. From the repo root: mkdir -p voices memory cache local && docker compose up -d --build
+# Eli has no login: keep it on your LAN or VPN, never port-forward it to the internet.
+services:
+  eli:
+    build: .
+    image: eli:latest
+    env_file: .env
+    environment:  # wins over .env: the container must listen on all its interfaces, on the port published below
+      HOST: 0.0.0.0
+      PORT: "5280"
+    ports:
+      - "5280:5280"  # "192.168.1.50:5280:5280" to listen on a single host interface only
+    volumes:
+      - ./voices:/app/voices  # Piper voices, vocal-separation and wake-word models (re-downloadable)
+      - ./memory:/app/memory  # conversation and notebook: back this one up
+      - ./cache:/app/cache    # clips and isolated vocals, pruned to ~400 MB each
+      - ./local:/app/local    # music-server token set from the Settings page
+      - ./.env:/app/.env:ro   # read as-is too: settings missing from the server's defaults only come from this file
+    user: "${ELI_UID:-1000}:${ELI_GID:-1000}"  # owner of the four folders above
+    init: true  # forwards `docker stop` to Python and reaps ffmpeg
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          # Singing (vocal separation) peaks around 2.5 GB and wants 4 cores while a song is analysed:
+          # on a host with 4+ cores, cpus "4" lets the voice keep up with playback (the limit can't exceed
+          # the host's core count). With SEPARATOR_MODEL=off in .env, Eli stays near 500 MB: 1g is plenty.
+          cpus: "2"
+          memory: 3g

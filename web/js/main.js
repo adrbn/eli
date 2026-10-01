@@ -12,6 +12,11 @@ const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const CLIENT = Math.random().toString(36).slice(2, 10);
 const AUDIO_FILE = /\.(wav|mp3|m4a|aac|flac|ogg|oga|opus|aiff?|caf|webm|mp4)$/i;
 const MAX_FILE = 150 * 1024 * 1024;
+// ?bare=1 : le visage seul, sans interface (l'encoche de l'app Mac, un cadre…).
+// ?mirror=1 en plus : un reflet muet d'un autre écran, qui ne lui prend jamais la parole.
+const params = new URLSearchParams(location.search);
+const BARE = params.has('bare'), MIRROR = params.has('mirror');
+if (BARE) document.body.classList.add('bare');
 const MAX_PTT_MS = 30000;
 const FOLLOW_MS = 6000; // après « Eli » seul, le temps qu'il t'écoute avant de laisser tomber
 
@@ -69,7 +74,7 @@ let theme = themeById(store.get('theme', 'pixel')) || THEMES[0];
 let draw = theme.make();
 let online = false, info = null, statusText = '';
 let serverMode = 'idle', serverGaze = null, mouseGaze = null, minTurn = 0;
-let ptt = false, pttTimer = 0, passive = false;
+let ptt = false, pttTimer = 0, passive = false, moodUntil = 0;
 let lastItem = null, lastAt = 0, holdUntil = 0, captionUntil = 0;
 
 // --- messages à l'utilisateur ---------------------------------------------------------------
@@ -155,6 +160,8 @@ function connect() {
     maybeIntro();
   });
   on('clip', onClip);
+  on('music', renderMusic);
+  on('setup', (d) => { if (d.need === 'navidrome') askMusic() });
   on('voice', (c) => {
     renderVoices(c);
     if (!c.busy) fetch('/api/status').then((r) => r.json()).then((s) => { info = s; renderInfo() }).catch(report);
@@ -184,7 +191,7 @@ function connect() {
 
 // La toute première fois, Eli se présente et pose quelques questions ; on répond à la voix ou par écrit.
 function maybeIntro() {
-  if (passive || store.get('met', false)) return;
+  if (passive || MIRROR || store.get('met', false)) return;
   fetch('/api/memory').then((r) => r.json()).then((m) => {
     store.set('met', true);
     if (!m.notes && !m.messages) startIntro();
@@ -215,6 +222,7 @@ function onBrain(d) {
     if (d.text) caption(`« ${d.text} »`, 'you', 8000);
     note(d.text ? 'Je réfléchis…' : 'Je n’ai rien entendu.');
   } else if (d.stage === 'llm') note('Je réfléchis…');
+  else if (d.stage === 'music') note(`Je cherche « ${d.text || 'un morceau'} »…`);
   else if (d.stage === 'done') note('');
   else if (d.stage === 'error') toast(`Cerveau en panne : ${d.error}`);
 }
@@ -290,7 +298,7 @@ function bindSettings() {
   const update = (patch) => {
     settings = { ...settings, ...patch };
     store.set('settings', settings);
-    player.setVolume(settings.volume);
+    player.setVolume(MIRROR ? 0 : settings.volume);
     leadOut.textContent = `${settings.lead > 0 ? '+' : ''}${settings.lead} ms`;
   };
   lead.value = settings.lead;
@@ -300,7 +308,7 @@ function bindSettings() {
   snore.checked = settings.snore;
   hot.checked = settings.hotword;
   update({});
-  if (settings.hotword) hotword(true);
+  if (settings.hotword && !MIRROR) hotword(true);
   hot.addEventListener('change', () => {
     update({ hotword: hot.checked });
     hotword(hot.checked);
@@ -345,6 +353,39 @@ function bindSettings() {
   $('#s-stop').addEventListener('click', () => stopAll('music'));
   $('#s-reset').addEventListener('click', () => post('/brain/reset').then(() => note('Conversation oubliée.'), report));
 }
+
+// --- musique (Navidrome) : Eli ouvre ce formulaire tout seul quand on lui demande un morceau sans accès --------
+const musicForm = $('#s-music-form');
+function renderMusic(m) {
+  musicForm.hidden = m.configured;
+  $('#s-music-done').hidden = !m.configured;
+  $('#s-music-hint').textContent = m.configured
+    ? `Connecté à ${m.url} (${m.user}). Demande « Eli, mets du jazz ».`
+    : 'Branche ta bibliothèque Navidrome (ou tout serveur Subsonic) et demande « Eli, mets du Daft Punk ». Le mot de passe n’est pas gardé, seulement un jeton.';
+  if (!m.configured && m.url) musicForm.url.value = m.url;
+}
+function askMusic() {
+  if (BARE) return;
+  if (el.settings.hidden) togglePanel(el.settings);
+  const box = $('#s-music');
+  box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  box.classList.remove('ask');
+  void box.offsetWidth; // relance l'animation
+  box.classList.add('ask');
+  (musicForm.hidden ? $('#s-music-forget') : musicForm.url).focus({ preventScroll: true });
+  note('Donne-moi l’accès à ta bibliothèque Navidrome.');
+}
+musicForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const f = musicForm, btn = f.querySelector('button');
+  btn.disabled = true;
+  btn.textContent = 'Je vérifie…';
+  post('/music/setup', { url: f.url.value, user: f.user.value, password: f.password.value })
+    .then((m) => { f.password.value = ''; renderMusic(m); note('Bibliothèque branchée.') }, report)
+    .finally(() => { btn.disabled = false; btn.textContent = 'Connecter' });
+});
+$('#s-music-forget').addEventListener('click', () => post('/music/forget').then(renderMusic, report));
+fetch('/api/music').then((r) => r.json()).then(renderMusic).catch(report);
 
 // --- panneaux et dock -----------------------------------------------------------------------
 function togglePanel(panel) {
@@ -559,6 +600,10 @@ function sense(now) {
   const h = player.heard(), item = player.ready ? player.at(h) : null;
   const s = { mode: serverMode, mouth: null, gaze: serverGaze || (settings.mouse ? mouseGaze : null), micLevel: mic.level };
   if (lastItem && item !== lastItem) s.clipEnd = true;
+  if (item?.meta.mood) { // l'émotion de la phrase entendue, qui s'attarde un peu après
+    face.mood = item.meta.mood;
+    moodUntil = now + 1500;
+  } else if (now > moodUntil) face.mood = null;
   if (item) {
     const tr = item.track, at = h - item.t0 + settings.lead / 1000, prev = item === lastItem ? lastAt : -1;
     if (item !== lastItem) {
@@ -606,7 +651,7 @@ function frame(now) {
   const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
   last = now;
   const f = face.update(dt, sense(now));
-  if (f.gesture === 'meow' && !passive && player.ready) post('/brain/meow').catch(report);
+  if (f.gesture === 'meow' && !passive && !MIRROR && player.ready) post('/brain/meow').catch(report);
   sleeper.update(f, settings.snore, face.cat);
   document.body.classList.toggle('asleep', f.asleep);
   fit(el.screen);
@@ -774,7 +819,7 @@ function takeOver() {
   tabs?.postMessage('take');
 }
 tabs?.addEventListener('message', ({ data }) => {
-  if (data !== 'take' || passive) return;
+  if (data !== 'take' || passive || MIRROR) return;
   passive = true;
   pttEnd();
   player.stop();
@@ -789,9 +834,9 @@ bindSettings();
 applyTheme(theme.id, false);
 renderStatus();
 connect();
-tabs?.postMessage('take'); // les onglets déjà ouverts se taisent
+if (!MIRROR) tabs?.postMessage('take'); // les onglets déjà ouverts se taisent
 showDock();
 player.unlock().catch(() => { /* le navigateur attend un clic : #wake le demande */ });
-setTimeout(() => { if (!passive) el.wake.hidden = player.ready }, 800);
+setTimeout(() => { if (!passive && !BARE) el.wake.hidden = player.ready }, 800);
 requestAnimationFrame(frame);
 window.eli = { face, player, mic, frame }; // pour inspecter (et animer un onglet masqué) depuis la console

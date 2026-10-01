@@ -252,6 +252,57 @@ Tout est dans `.env` (modèle : [`.env.example`](.env.example)). Seule `GROQ_API
 
 La personnalité d'Eli est dans `DEFAULT_PERSONA` (`server/brain.py`) ; crée un `persona.txt` à la racine pour la remplacer.
 
+## Sur un serveur maison (Docker)
+
+Le même serveur tourne sur un NAS ou un mini-PC (Linux, amd64 ou arm64 en 64 bits), et chaque téléphone, tablette ou
+ordinateur de la maison ouvre le visage dans son navigateur.
+
+```bash
+git clone https://github.com/adrbn/eli && cd eli
+cp .env.example .env              # mets ta GROQ_API_KEY dedans
+mkdir -p voices memory cache local  # créés par toi, pour que le conteneur (uid 1000) puisse y écrire
+docker compose up -d --build
+docker compose logs -f            # attends « voix : piper · Siwis » puis « Eli écoute sur … »
+```
+
+- Le premier démarrage télécharge la voix Piper et le modèle qui isole les voix (~130 Mo) dans `voices/`. Si tu viens
+  d'un Mac, copie d'abord ton dossier `memory/` (et `voices/` pour éviter les téléchargements) : Eli reprend où il en était.
+- Ton uid sur le serveur n'est pas 1000 ? Ajoute `ELI_UID=…` et `ELI_GID=…` (donnés par `id -u` et `id -g`) dans `.env`.
+- Garde `TTS=piper`, et supprime `voices/choix.txt` s'il désigne une voix `say:` : les voix macOS n'existent pas sous Linux.
+- **Le chant consomme beaucoup de CPU** : isoler la voix d'un morceau fait tourner un modèle ONNX sur 4 fils, avec un pic
+  autour de 2,5 Go de RAM (un M1 met ~0,8× la durée du morceau ; un petit processeur peut prendre du retard sur la
+  lecture). `SEPARATOR_MODEL=off` dans `.env` le coupe (Eli danse toujours), et la limite de mémoire de `compose.yaml`
+  peut alors descendre à 1 Go.
+- Eli n'a **pas de mot de passe** : quiconque atteint le port peut le faire parler et lire son carnet. Garde-le sur ton
+  réseau local ou ton VPN, et n'ouvre jamais le port sur internet.
+
+**Depuis un téléphone ou une tablette**, ouvre `http://<ip-du-serveur>:5280`, sur le réseau local ou à travers un VPN
+comme Tailscale ou WireGuard. Utilise l'adresse IP : Eli ne répond qu'aux adresses IP et à `localhost` (une protection
+contre le DNS rebinding), donc un nom comme `nas.local` reçoit une erreur 403.
+
+En `http://` simple, tout marche sauf le **micro** (Espace maintenu et le mot de réveil) : les navigateurs n'autorisent
+`getUserMedia` que dans un contexte sécurisé, c'est-à-dire en HTTPS ou sur `localhost`. Tu peux toujours écrire. Pour le
+micro, mets du HTTPS devant Eli, sur la même IP :
+
+- **Un reverse proxy avec TLS**, par exemple [Caddy](https://caddyserver.com) avec sa propre autorité de certification
+  locale. Il garde l'en-tête `Host` du navigateur, qu'Eli compare à `Origin` :
+
+  ```caddy
+  # l'IP du serveur sur le réseau local ou le VPN ; reverse_proxy eli:5280 si Caddy tourne dans le même compose
+  https://192.168.1.50:5443 {
+      tls internal
+      reverse_proxy 127.0.0.1:5280
+  }
+  ```
+
+  Installe ensuite une fois le certificat racine de Caddy (`pki/authorities/local/root.crt` dans son dossier de
+  données) sur chaque appareil, fais-lui confiance, et ouvre `https://192.168.1.50:5443`.
+- **`tailscale serve`** donne un vrai certificat sans rien régler, sur un nom en `*.ts.net`. Par défaut Eli ne sert que
+  les adresses IP et `localhost` (garde-fou contre le DNS rebinding) : nomme-le dans `.env`,
+  `ALLOWED_HOSTS=eli.ton-tailnet.ts.net`.
+- Pour un essai rapide, Chrome (ordinateur et Android) peut traiter une origine comme sécurisée :
+  `chrome://flags/#unsafely-treat-insecure-origin-as-secure`.
+
 ## Vers l'ESP32
 
 - **Carte** : ESP32-S3 avec PSRAM (tampons audio), ampli I2S MAX98357A et un petit haut-parleur.
@@ -270,6 +321,10 @@ La personnalité d'Eli est dans `DEFAULT_PERSONA` (`server/brain.py`) ; crée un
 - [x] Visages de chat, miaous, ronronnements
 - [ ] Karaoké avec paroles synchronisées (LRCLIB)
 - [x] Mot de réveil : dis « Eli, … » sans les mains (filtre local Vosk, puis tes oreilles confirment ; Réglages → écoute permanente)
+- [x] Émotions : le LLM balise ses phrases ([joie], [colère]…) et les yeux et la bouche les jouent
+- [x] « Eli, mets du Daft Punk » : ta bibliothèque Navidrome/Subsonic ; Eli ouvre le bon formulaire la première fois
+- [x] Cerveau local : tout serveur compatible OpenAI (`LLM_URL`, par ex. mlx_lm.server ou Ollama)
+- [x] Version serveur maison (Docker)
 - [ ] Le point du matin
 - [ ] Version ESP32 + cou motorisé (servo)
 - [ ] Plusieurs Eli qui se parlent entre eux

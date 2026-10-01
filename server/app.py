@@ -19,7 +19,10 @@ Rôle 2 · le cerveau (brain.py), qui ne parle à l'écran que par ce protocole 
   POST /brain/intro                                 les présentations : Eli pose quelques questions pour te connaître
   POST /brain/meow                                  un miaou (visages de chat)
   POST /brain/hotword  corps = WAV 16 kHz mono      écoute permanente : est-ce « Eli, … » ? (voir hotword.py)
+  POST /music/setup  {"url","user","password"}      accès Navidrome (vérifié, seul un jeton est gardé) ; /music/forget
   GET  /api/status, /api/voices, /api/memory        état, voix au choix (POST /voice {"id"}), souvenirs
+  GET  /api/music                                   {"configured","url","user"}
+  Les clips de parole peuvent porter X-Mood (joie, tristesse… voir tags.py) : le visage joue l'émotion.
 """
 from __future__ import annotations
 
@@ -46,6 +49,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from brain import Brain, FaceClient  # noqa: E402
 from hotword import Hotword, command  # noqa: E402
+from navidrome import MusicError, Navidrome  # noqa: E402
+import tags  # noqa: E402
 from stems import Stems  # noqa: E402
 from voice import make_tts  # noqa: E402
 
@@ -74,6 +79,10 @@ DEFAULTS = {
     "STT_PROVIDERS": "groq,echo",
     "STT_LANGUAGE": "fr",
     "GROQ_STT_MODEL": "whisper-large-v3-turbo",
+    "LLM_URL": "",  # un LLM local au format OpenAI (mlx_lm.server, Ollama…) ; vide = Groq
+    "LLM_API_KEY": "",
+    "ALLOWED_HOSTS": "",  # noms servis en plus des IP et de localhost (ex. eli.tailnet.ts.net derrière tailscale serve)
+    "NAVIDROME_URL": "", "NAVIDROME_USER": "", "NAVIDROME_PASSWORD": "",  # ou le formulaire Réglages → Musique
     "LLM_MODEL": "openai/gpt-oss-120b",
     "LLM_FALLBACK_MODEL": "openai/gpt-oss-20b",
     "TTS": "piper",
@@ -229,8 +238,9 @@ class App:
         self.clips = Clips(CACHE / "clips")
         self.tts = tts or make_tts(cfg, ROOT)
         self.stems = make_stems(cfg, self._stem_ready, self._stem_progress) if with_stems else None
+        self.music = Navidrome(ROOT / "local" / "navidrome.json", cfg)
         self.brain = Brain(cfg, self.tts, FaceClient(cfg.get("FACE_URL") or f"http://127.0.0.1:{port}"), self.hub.publish,
-                           lambda: self.hub.state["theme"])
+                           lambda: self.hub.state["theme"], self.music)
         self.hotword = Hotword(ROOT / "voices")
 
     def _stem_ready(self, clip_id: str, sha: str, error: str | None) -> None:
@@ -248,7 +258,7 @@ class App:
         return {
             "tts": self.tts.name,
             "stt": self.cfg["STT_PROVIDERS"],
-            "llm": self.cfg["LLM_MODEL"] if self.cfg.get("GROQ_API_KEY") else None,
+            "llm": self.cfg["LLM_MODEL"] if self.brain.has_llm() else None,
             "stems": bool(self.stems),
             "turn": self.brain.turn,  # une page qui (re)vient sait quels clips sont périmés
             **self.hub.state,
@@ -284,9 +294,10 @@ class Handler(BaseHTTPRequestHandler):
 
     # --- garde-fous ---------------------------------------------------------------------------
     def _host_ok(self) -> bool:
-        """Refuse les noms de domaine (DNS rebinding) : seules les adresses IP et localhost sont servies."""
+        """Refuse les noms de domaine (DNS rebinding) : seules les IP, localhost et ALLOWED_HOSTS sont servis."""
         host = urllib.parse.urlsplit("//" + (self.headers.get("Host") or "")).hostname or ""
-        if host == "localhost":
+        allowed = {h.strip().lower() for h in self.app.cfg.get("ALLOWED_HOSTS", "").split(",") if h.strip()}
+        if host == "localhost" or host in allowed:
             return True
         try:
             ipaddress.ip_address(host)
@@ -338,6 +349,8 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/memory":
             mem = self.app.brain.memory
             return self._json(200, {"notes": mem.notes(), "messages": len(mem.recent())})
+        if path == "/api/music":
+            return self._json(200, self.app.music.status())
         if path == "/api/voices":
             catalog = getattr(self.app.tts, "catalog", None)
             return self._json(200, catalog() if catalog else {"current": None, "busy": None, "voices": []})
@@ -415,6 +428,8 @@ class Handler(BaseHTTPRequestHandler):
             "/brain/intro": self._post_intro,
             "/brain/meow": self._post_meow,
             "/brain/hotword": self._post_hotword,
+            "/music/setup": self._post_music_setup,
+            "/music/forget": self._post_music_forget,
         }.get(url.path)
         if route is None:
             return self._error(404, "route inconnue")
@@ -446,6 +461,9 @@ class Handler(BaseHTTPRequestHandler):
         phonemes = parse_phonemes(self.headers.get("X-Phonemes"))
         if phonemes:
             meta["phonemes"] = phonemes
+        mood = urllib.parse.unquote(self.headers.get("X-Mood") or "")
+        if mood in tags.MOODS:
+            meta["mood"] = mood
         if kind == "music":
             meta["stem"] = "off"
             if self.app.stems:
@@ -588,6 +606,25 @@ class Handler(BaseHTTPRequestHandler):
             return self._json(200, {"wake": True, "listen": True})
         app.hub.publish("brain", {"stage": "heard", "text": text, "provider": provider})
         self._json(200, {"wake": True, "turn": app.brain.start("chat", cmd)})
+
+    def _post_music_setup(self, _query: dict) -> None:
+        data = self._json_body()
+        if data is None:
+            return
+        url, user, password = (data.get(k) for k in ("url", "user", "password"))
+        if not all(isinstance(v, str) for v in (url, user, password)):
+            return self._error(400, "url, user et password attendus")
+        try:
+            status = self.app.music.setup(url, user, password)
+        except MusicError as exc:
+            return self._error(400, str(exc))
+        self.app.hub.publish("music", status)
+        self._json(200, {"ok": True, **status})
+
+    def _post_music_forget(self, _query: dict) -> None:
+        self.app.music.forget()
+        self.app.hub.publish("music", self.app.music.status())
+        self._json(200, self.app.music.status())
 
     def _post_reset(self, query: dict) -> None:
         self.app.brain.reset(everything=query.get("all") == "1")

@@ -41,6 +41,10 @@
   #screen { display: block; width: min(calc(100vw - 80px), calc((100dvh - 250px) * var(--ratio)), 1400px); aspect-ratio: var(--ratio); min-width: 160px; background: #000; border-radius: 6px; }
   .bezel[data-screen="round"] #screen { border-radius: 50%; }
   .bezel { position: relative; }
+  body.bare .stage { padding: 0; }
+  body.bare .bezel { padding: 0; background: none; box-shadow: none; border-radius: 0; }
+  body.bare #screen { width: min(100vw, 100dvh * var(--ratio)); min-width: 0; border-radius: 0; }
+  body.bare :is(.caption, .dock, .toast, .wake, .drop) { display: none !important; }
   .zzz { position: absolute; top: 4%; right: 6%; display: flex; gap: .15em; color: var(--green); font: 700 clamp(14px, 2.2vw, 26px) ui-monospace, monospace; pointer-events: none; opacity: 0; transition: opacity 1.2s; }
   .zzz span { animation: zzz 3.2s ease-in-out infinite; text-shadow: 0 0 10px #46ff8680; }
   .zzz span:nth-child(2) { animation-delay: .5s; font-size: 1.25em; }
@@ -107,6 +111,11 @@
   .seg button[aria-pressed="true"] { background: var(--green-dim); color: var(--green); }
   .stack { display: grid; gap: 16px; }
   .row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .music-form { display: grid; gap: 8px; }
+  .music-form input { padding: 8px 10px; background: #ffffff0a; border: 1px solid var(--line-strong); border-radius: 10px; outline: none; }
+  .music-form input:focus { border-color: var(--green); }
+  #s-music.ask { animation: ask 1.2s ease-out 2; border-radius: 12px; }
+  @keyframes ask { from { box-shadow: 0 0 0 2px var(--green); } to { box-shadow: 0 0 0 14px transparent; } }
   .btn { padding: 9px 14px; background: #ffffff0a; border: 1px solid var(--line-strong); border-radius: 10px; font-size: 14px; }
   .btn:hover { background: #ffffff14; }
   .btn.danger { color: var(--danger); }
@@ -247,6 +256,17 @@
         <button class="btn" id="s-intro" type="button">Faire connaissance</button>
         <button class="btn danger" id="s-forget" type="button">Tout oublier</button>
       </div>
+    </div>
+    <div id="s-music">
+      <h3>Musique</h3>
+      <p class="hint" id="s-music-hint">Branche ta bibliothèque Navidrome (ou tout serveur Subsonic) et demande « Eli, mets du Daft Punk ». Le mot de passe n’est pas gardé, seulement un jeton.</p>
+      <form class="music-form" id="s-music-form">
+        <input name="url" type="url" placeholder="http://serveur:4533" required autocomplete="url">
+        <input name="user" placeholder="Utilisateur" required autocomplete="username">
+        <input name="password" type="password" placeholder="Mot de passe" required autocomplete="current-password">
+        <div class="row"><button class="btn" type="submit">Connecter</button></div>
+      </form>
+      <div class="row" id="s-music-done" hidden><button class="btn danger" id="s-music-forget" type="button">Oublier cette bibliothèque</button></div>
     </div>
     <div>
       <h3>Moteur</h3>

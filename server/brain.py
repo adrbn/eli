@@ -19,6 +19,8 @@ from typing import Callable, Iterator
 
 import meow
 import piper_text
+import tags
+from navidrome import MusicError
 from memory import Memory
 
 log = logging.getLogger("eli.brain")
@@ -131,7 +133,8 @@ def transcribe(url: str, key: str, model: str, language: str, wav: bytes, timeou
         return str(json.loads(r.read()).get("text", "")).strip()
 
 
-def stream_chat(key: str, model: str, messages: list[dict], timeout: float = 30, max_tokens: int = 700) -> Iterator[str]:
+def stream_chat(key: str, model: str, messages: list[dict], timeout: float = 30, max_tokens: int = 700,
+                base: str = GROQ) -> Iterator[str]:
     body: dict = {
         "model": model,
         "messages": messages,
@@ -141,10 +144,15 @@ def stream_chat(key: str, model: str, messages: list[dict], timeout: float = 30,
     }
     if model.startswith("openai/gpt-oss"):
         body.update(reasoning_effort="low", include_reasoning=False)
+    if "qwen3" in model.lower():  # pas de réflexion à voix haute : on veut la réponse tout de suite
+        body["chat_template_kwargs"] = {"enable_thinking": False}
+    headers = {"Content-Type": "application/json", "User-Agent": UA}
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
     req = urllib.request.Request(
-        f"{GROQ}/chat/completions",
+        f"{base.rstrip('/')}/chat/completions",
         data=json.dumps(body).encode(),
-        headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json", "User-Agent": UA},
+        headers=headers,
         method="POST",
     )
     with urllib.request.urlopen(req, timeout=timeout) as r:
@@ -176,13 +184,16 @@ class FaceClient:
         with urllib.request.urlopen(req, timeout=10) as r:
             return json.loads(r.read() or b"{}")
 
-    def clip(self, wav: bytes, kind: str, text: str, turn: int, phonemes: list | None = None) -> dict:
-        query = urllib.parse.urlencode({"kind": kind, "turn": turn})
+    def clip(self, wav: bytes, kind: str, text: str, turn: int, phonemes: list | None = None, mood: str | None = None,
+             ctype: str = "audio/wav", name: str | None = None) -> dict:
+        query = urllib.parse.urlencode({"kind": kind, "turn": turn, **({"name": name} if name else {})})
         headers = {"X-Text": urllib.parse.quote(text[:500])}
+        if mood:
+            headers["X-Mood"] = urllib.parse.quote(mood)
         packed = urllib.parse.quote(json.dumps(phonemes, ensure_ascii=False, separators=(",", ":"))) if phonemes else ""
         if packed and len(packed) < 7000:  # une en-tête HTTP a ses limites ; au-delà, la bouche suit le son seul
             headers["X-Phonemes"] = packed
-        return self._post(f"/clip?{query}", wav, "audio/wav", headers)
+        return self._post(f"/clip?{query}", wav, ctype, headers)
 
     def state(self, mode: str) -> None:
         try:
@@ -200,8 +211,8 @@ class FaceClient:
 
 class Brain:
     def __init__(self, cfg: dict, tts, face: FaceClient, publish: Callable[[str, dict], None],
-                 theme: Callable[[], str | None] = lambda: None):
-        self.cfg, self.tts, self.face, self.publish, self.theme = cfg, tts, face, publish, theme
+                 theme: Callable[[], str | None] = lambda: None, music=None):
+        self.cfg, self.tts, self.face, self.publish, self.theme, self.music = cfg, tts, face, publish, theme, music
         self.intro_left = 0  # questions de présentation encore à poser
         self.lock = threading.Lock()
         self.turn = 0
@@ -233,15 +244,22 @@ class Brain:
         self.memory.add("(C'est notre première rencontre.)", INTRO_GREETING)
         return self.start("speak", INTRO_GREETING)
 
+    def has_llm(self) -> bool:
+        return bool(self.cfg.get("LLM_URL") or self.cfg.get("GROQ_API_KEY"))
+
+    def _llm_key(self) -> str:
+        return self.cfg.get("LLM_API_KEY", "") if self.cfg.get("LLM_URL") else self.cfg.get("GROQ_API_KEY", "")
+
     def cat(self) -> bool:
         """Un visage de chat : miaous dans les réponses, et voix de chat si le filtre est coché."""
         return str(self.theme() or "").startswith("chat")
 
     def _digest(self, messages: list[dict]) -> str:
         """Appel non diffusé au LLM, pour le carnet de souvenirs."""
-        if not self.cfg.get("GROQ_API_KEY"):
+        if not self.has_llm():
             raise RuntimeError("pas de clé Groq")
-        return "".join(stream_chat(self.cfg["GROQ_API_KEY"], self.cfg["LLM_MODEL"], messages, timeout=60, max_tokens=2500))
+        return "".join(stream_chat(self._llm_key(), self.cfg["LLM_MODEL"], messages, timeout=60, max_tokens=2500,
+                                   base=self.cfg.get("LLM_URL") or GROQ))
 
     def start(self, kind: str, payload) -> int:
         turn = self._new_turn()
@@ -298,11 +316,11 @@ class Brain:
 
     # --- bouche ------------------------------------------------------------------------------
     def _answer(self, turn: int, user_text: str) -> None:
-        if not self.cfg.get("GROQ_API_KEY"):
-            self._say(turn, "Je n'ai pas encore de cerveau branché : il manque la clé Groq.", [])
+        if not self.has_llm():
+            self._say(turn, "Je n'ai pas encore de cerveau branché : il manque la clé Groq, ou l'adresse d'un LLM local.", [])
             return
         self.publish("brain", {"stage": "llm"})
-        system = f"{self.memory.system_prompt(self.persona)}\n\n{LANG_HINT}"
+        system = f"{self.memory.system_prompt(self.persona)}\n\n{LANG_HINT}\n\n{tags.HINT}"
         intro = self.intro_left
         if intro:
             system += "\n\n" + intro_hint(intro)
@@ -312,18 +330,18 @@ class Brain:
         if cat and random.random() < 0.35:
             meows += 1
             self._meow(turn)
-        splitter, said = SentenceSplitter(), []
+        splitter, said, songs = SentenceSplitter(), [], []
         for delta in self.reply_stream(messages):
             if not self.alive(turn):
                 break
             for sentence in splitter.feed(delta):
-                self._say(turn, clean_for_tts(sentence), said)
+                self._sentence(turn, sentence, said, songs)
                 if cat and meows < 2 and random.random() < 0.2:  # un miaou glissé entre deux phrases
                     meows += 1
                     self._meow(turn)
         else:
             for sentence in splitter.flush():
-                self._say(turn, clean_for_tts(sentence), said)
+                self._sentence(turn, sentence, said, songs)
             if cat and not meows and random.random() < 0.5:
                 self._meow(turn)
         reply = " ".join(said)
@@ -337,13 +355,15 @@ class Brain:
                 self.memory.add(user_text, reply or "…")
         if self.alive(turn):
             self.publish("brain", {"stage": "done", "text": reply})
+        if songs and self.alive(turn):
+            self._play(turn, songs[-1])
 
     def reply_stream(self, messages: list[dict]) -> Iterator[str]:
         last: Exception | None = None
         for model in [m for m in (self.cfg["LLM_MODEL"], self.cfg.get("LLM_FALLBACK_MODEL")) if m]:
             got = False
             try:
-                for delta in stream_chat(self.cfg["GROQ_API_KEY"], model, messages):
+                for delta in stream_chat(self._llm_key(), model, messages, base=self.cfg.get("LLM_URL") or GROQ):
                     got = True
                     yield delta
                 return
@@ -354,15 +374,42 @@ class Brain:
                 last = exc
         raise RuntimeError(f"LLM indisponible : {last}")
 
-    def _say(self, turn: int, text: str, said: list[str]) -> None:
+    def _sentence(self, turn: int, sentence: str, said: list[str], songs: list[str]) -> None:
+        text, mood, song = tags.parse(sentence)
+        if song:
+            songs.append(song)
+        self._say(turn, clean_for_tts(text), said, mood)
+
+    def _say(self, turn: int, text: str, said: list[str], mood: str | None = None) -> None:
         if not text or not self.alive(turn):
             return
         spoken = self.tts.synth(text, self.cat())
         if spoken and self.alive(turn):  # None : rien de prononçable (« … »)
             wav, phonemes = spoken
             shown = piper_text.plain(text)
-            self.face.clip(wav, "speech", shown, turn, phonemes)
+            self.face.clip(wav, "speech", shown, turn, phonemes, mood)
             said.append(shown)
+
+    def _play(self, turn: int, query: str) -> None:
+        """[musique: …] : cherche le morceau dans la bibliothèque et l'envoie au visage, qui le chante."""
+        if not self.music or not self.music.auth:  # la page ouvre le formulaire au bon endroit
+            self.publish("setup", {"need": "navidrome"})
+            self._say(turn, "Pour ça, il me faut l'accès à ta bibliothèque Navidrome. Je t'ouvre le formulaire.", [])
+            return
+        self.publish("brain", {"stage": "music", "text": query})
+        try:
+            song = self.music.find(query)
+            if not song:
+                self._say(turn, "Je n'ai rien trouvé pour ça dans ta bibliothèque.", [], "gêne")
+                return
+            data = self.music.fetch(song["id"])
+        except MusicError as exc:
+            self.publish("brain", {"stage": "error", "error": str(exc)})
+            self._say(turn, "Je n'arrive pas à joindre ta musique.", [], "tristesse")
+            return
+        if self.alive(turn):
+            title = f"{song['artist']} – {song['title']}".strip(" –")
+            self.face.clip(data, "music", title, turn, ctype="audio/mpeg", name=f"{title[:100]}.mp3")
 
     def _meow(self, turn: int) -> None:
         if self.alive(turn):

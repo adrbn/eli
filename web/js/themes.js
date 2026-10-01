@@ -21,11 +21,14 @@ function sdBox(px, py, bx, by, r) {
 // Visage « pixel » dans un espace 2:1 (x ∈ [0, 2], y ∈ [0, 1]) : le point est-il allumé ?
 // Yeux en rectangles très arrondis ; minH garde la bouche visible même sur une grille grossière.
 function pixLit(f, x, y, minH) {
-  const { gx, gy, open, hap, sc, bo } = f.eyes, m = f.mouth;
+  const { gx, gy, open, hap, sc, bo, ang = 0 } = f.eyes, m = f.mouth;
   const hw = 0.2 * sc, hh = Math.max(0.03, 0.24 * sc * open), er = Math.min(hw, hh) * 0.6;
   for (const s of [-1, 1]) {
     const ex = 1 + s * 0.4 + gx * 0.125, ey = 0.38 + gy * 0.1 - bo * 0.0625;
     if (sdBox(x - ex, y - ey, hw, hh, er) > 0) continue;
+    // Paupière inclinée : en colère, le coin intérieur descend ; triste, c'est le coin extérieur.
+    const inner = clamp01((1 - s * (x - ex) / hw) / 2);
+    if (ang && y - (ey - hh) < hh * (ang > 0 ? ang * 1.1 * inner : -ang * 0.9 * (1 - inner))) continue;
     const smile = hap > 0.05 && ((x - ex) / (1.3 * hw)) ** 2 + ((y - ey - 1.1 * hh) / (1.2 * hh * hap)) ** 2 <= 1;
     return !smile;
   }

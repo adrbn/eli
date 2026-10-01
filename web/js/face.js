@@ -11,6 +11,19 @@ const DROWSY_AFTER = 120; // s sans rien → somnole, puis s'endort une minute p
 export const BREATH = 4.5; // s par respiration endormie (le ronflement s'y cale)
 const bell = (u) => Math.sin(Math.PI * clamp(u, 0, 1));
 
+// Les émotions que le LLM annonce par phrase ([joie]…) : des cibles pour les yeux (hap = sourire des yeux,
+// sc = taille, sq = plissement, ang = paupières en colère > 0 / tristes < 0, ty = regard), et une bouche au repos.
+export const MOODS = {
+  joie: { hap: 0.85, sc: 1.06, rest: { o: 0.04, w: 0.75, r: 0, t: 0 } },
+  rire: { hap: 1, sc: 1.04, bounce: 0.5, rest: { o: 0.3, w: 0.7, r: 0.1, t: 1 } },
+  surprise: { sc: 1.25, sq: 0, rest: { o: 0.4, w: 0.15, r: 1, t: 0 } },
+  tristesse: { sc: 0.94, sq: 0.25, ang: -0.9, ty: 0.35, rest: { o: 0.03, w: 0.15, r: 0.4, t: 0 } },
+  colère: { sc: 0.95, sq: 0.3, ang: 1, rest: { o: 0.05, w: 0.45, r: 0, t: 1 } },
+  amour: { hap: 0.75, sc: 1.08, pulse: 0.07, rest: { o: 0.03, w: 0.5, r: 0.3, t: 0 } },
+  malice: { hap: 0.45, ang: 0.45, tx: 0.45, rest: { o: 0.03, w: 0.5, r: 0, t: 0 } },
+  gêne: { hap: 0.35, sc: 0.93, ty: 0.3, tx: -0.6, rest: { o: 0.02, w: 0.2, r: 0.2, t: 0 } },
+};
+
 // Les gestes spontanés, quand personne ne bouge : [nom, durée s, poids]. Le poids peut dépendre de la somnolence.
 const GESTURES = [
   ['glance', 2.2, () => 4], ['lookaround', 3, () => 2], ['doubleblink', 0.6, () => 3], ['smile', 1.8, () => 2],
@@ -20,7 +33,8 @@ const GESTURES = [
 
 export class Face {
   constructor() {
-    this.e = { gx: 0, gy: 0, tx: 0, ty: 0, bl: 0, bt: 0, nb: 1.5, hap: 0, sc: 1, bo: 0, sa: 0, av: 0, sq: 0, sleep: 0 };
+    this.e = { gx: 0, gy: 0, tx: 0, ty: 0, bl: 0, bt: 0, nb: 1.5, hap: 0, sc: 1, bo: 0, sa: 0, av: 0, sq: 0, sleep: 0, ang: 0 };
+    this.mood = null; // une clé de MOODS, posée par la page pendant la phrase qui la porte
     this.m = { ...REST };
     this.T = 0;
     this.idle = 0;
@@ -141,33 +155,40 @@ export class Face {
     } else e.bl = 0;
     e.bo *= Math.exp(-dt * 7);
 
+    const md = !asleep && MOODS[this.mood];
+    e.ang = ease(e.ang, md?.ang || 0, 6, dt);
+    if (md?.bounce && this.T % 0.32 < dt) e.bo = Math.max(e.bo, md.bounce); // rire : petits sursauts
+    const pulse = md?.pulse ? md.pulse * Math.max(0, Math.sin(this.T * 7.5)) ** 8 : 0; // amour : un cœur qui bat
+
     const phase = (this.T / BREATH) % 1, inhale = asleep && phase < 0.4 ? bell(phase / 0.4) : 0;
-    const want = gm || (asleep ? { o: 0.05 + 0.17 * inhale, w: 0.25, r: 0.4, t: 0 } : REST);
+    const want = gm || (asleep ? { o: 0.05 + 0.17 * inhale, w: 0.25, r: 0.4, t: 0 } : md?.rest || REST);
     if (s.mouth && s.mode === 'sing' && s.pitch) { // aigu : bouche plus haute et ronde ; grave : plus large
       const p = s.pitch;
       Object.assign(m, s.mouth, { o: Math.min(1, s.mouth.o * (1 + 0.3 * Math.max(0, p))), r: Math.min(1, s.mouth.r + 0.3 * Math.max(0, p)), w: Math.min(1, s.mouth.w + 0.25 * Math.max(0, -p)) });
+    } else if (s.mouth && md) { // en parlant, l'émotion tire la bouche : plus large de joie, plus ronde de surprise
+      Object.assign(m, s.mouth, { w: clamp(s.mouth.w + (md.rest.w - 0.3) * 0.5, 0, 1), r: clamp(s.mouth.r + md.rest.r * 0.3, 0, 1) });
     } else if (s.mouth) Object.assign(m, s.mouth);
     else for (const k in REST) m[k] = ease(m[k], want[k], gm ? 12 : 20, dt);
 
     const g = s.gaze || { x: 0, y: 0 }, gk = s.mode === 'sing' ? 8 : 20;
-    e.gx = ease(e.gx, clamp(g.x + e.tx, -1.3, 1.3), gk, dt);
-    e.gy = ease(e.gy, clamp(g.y + e.ty + e.sleep * 0.3, -1, 1), gk, dt);
+    e.gx = ease(e.gx, clamp(g.x + e.tx + (md?.tx || 0), -1.3, 1.3), gk, dt);
+    e.gy = ease(e.gy, clamp(g.y + e.ty + (md?.ty || 0) + e.sleep * 0.3, -1, 1), gk, dt);
     const breathe = asleep ? 0.03 * inhale : 0.008 * Math.sin(this.T * 1.6); // éveillé, il respire à peine
     return {
       T: this.T,
       gesture: started,
       asleep,
       phase,
-      eyes: { gx: e.gx, gy: e.gy, open: (1 - e.bl * 0.93) * (1 - e.sq * 0.4) * (1 - e.sleep * 0.9), hap: e.hap, sc: e.sc + breathe, bo: e.bo },
+      eyes: { gx: e.gx, gy: e.gy, open: (1 - e.bl * 0.93) * (1 - e.sq * 0.4) * (1 - e.sleep * 0.9), hap: e.hap, sc: e.sc + breathe + pulse, bo: e.bo, ang: e.ang },
       mouth: { ...m },
     };
   }
 
   relax(dt, scale) {
-    const e = this.e;
-    e.hap = ease(e.hap, 0, 6, dt);
-    e.sc = ease(e.sc, scale, 6, dt);
-    e.sq = ease(e.sq, 0, 6, dt);
+    const e = this.e, md = MOODS[this.mood] || {};
+    e.hap = ease(e.hap, md.hap || 0, 6, dt);
+    e.sc = ease(e.sc, scale * (md.sc || 1), 6, dt);
+    e.sq = ease(e.sq, md.sq || 0, 6, dt);
   }
 
   saccade(dt, mode) {
