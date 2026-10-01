@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Eli</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23000'/%3E%3Crect x='6' y='8' width='8' height='10' rx='3.5' fill='%2346ff86'/%3E%3Crect x='18' y='8' width='8' height='10' rx='3.5' fill='%2346ff86'/%3E%3Crect x='12' y='22' width='8' height='3' rx='1.5' fill='%2346ff86'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #050605;
+    --panel: #0d0f0d;
+    --line: #1d221d;
+    --line-strong: #2b332b;
+    --text: #d6eadb;
+    --muted: #7f9284;
+    --green: #46ff86;
+    --green-dim: #1d5c35;
+    --danger: #ff7a6b;
+    --radius: 14px;
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    color: var(--text);
+    background: var(--bg);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { background: var(--bg); overflow: hidden; -webkit-font-smoothing: antialiased; }
+  body.calm { cursor: none; }
+  button, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
+  [hidden] { display: none !important; }
+  svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+
+  /* --- l'écran ---------------------------------------------------------------------------- */
+  .stage { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding: 16px 16px 110px; transition: padding .7s cubic-bezier(.22, 1, .36, 1); }
+  body.calm .stage { padding-bottom: 16px; } /* dock caché : le visage revient au centre */
+  .bezel { --ratio: 2; padding: clamp(10px, 1.8vw, 22px); background: linear-gradient(160deg, #141714, #0a0b0a); border-radius: clamp(18px, 3vw, 34px); box-shadow: 0 0 0 1px #1c201c, inset 0 1px 0 #ffffff0d, 0 40px 90px #000c; transition: border-radius .4s; }
+  .bezel[data-screen="round"] { --ratio: 1; border-radius: 50%; }
+  .bezel[data-screen="wide"] { --ratio: 1.3333; }
+  #screen { display: block; width: min(calc(100vw - 80px), calc((100dvh - 250px) * var(--ratio)), 1400px); aspect-ratio: var(--ratio); min-width: 160px; background: #000; border-radius: 6px; }
+  .bezel[data-screen="round"] #screen { border-radius: 50%; }
+  .bezel { position: relative; }
+  .zzz { position: absolute; top: 4%; right: 6%; display: flex; gap: .15em; color: var(--green); font: 700 clamp(14px, 2.2vw, 26px) ui-monospace, monospace; pointer-events: none; opacity: 0; transition: opacity 1.2s; }
+  .zzz span { animation: zzz 3.2s ease-in-out infinite; text-shadow: 0 0 10px #46ff8680; }
+  .zzz span:nth-child(2) { animation-delay: .5s; font-size: 1.25em; }
+  .zzz span:nth-child(3) { animation-delay: 1s; font-size: 1.55em; }
+  body.asleep .zzz { opacity: .9; }
+  @keyframes zzz { 0%, 100% { transform: translateY(6px); opacity: .25; } 50% { transform: translateY(-8px); opacity: 1; } }
+  .caption { position: relative; z-index: 1; min-height: 1.5em; max-width: min(820px, 92vw); margin: 0; text-align: center; font-size: clamp(16px, 2vw, 21px); line-height: 1.45; color: var(--text); text-wrap: balance; transition: opacity .3s; }
+  .caption:empty { opacity: 0; }
+  .caption.you { color: var(--muted); font-style: italic; }
+  .caption.music { color: var(--green); }
+
+  /* --- le dock ---------------------------------------------------------------------------- */
+  .dock { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; width: min(760px, calc(100vw - 32px)); padding: 7px; background: #101310e6; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); border: 1px solid var(--line); border-radius: 999px; transition: opacity .35s, transform .35s; z-index: 5; }
+  .dock.away { opacity: 0; transform: translate(-50%, 14px); pointer-events: none; }
+  .icon-btn { display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 13px; background: transparent; border: 0; border-radius: 999px; color: var(--muted); white-space: nowrap; }
+  .icon-btn:hover { color: var(--text); background: #ffffff0d; }
+  .mic { width: 44px; height: 44px; padding: 0; justify-content: center; background: var(--green-dim); color: var(--green); touch-action: none; user-select: none; -webkit-user-select: none; }
+  .mic:hover { background: #24703f; color: var(--green); }
+  .mic.on { background: var(--green); color: #000; box-shadow: 0 0 0 6px #46ff8633; }
+  .chat { flex: 1; min-width: 0; display: flex; }
+  .chat input { width: 100%; height: 40px; padding: 0 14px; background: #0006; border: 1px solid var(--line); border-radius: 999px; outline: none; }
+  .chat input:focus { border-color: var(--green-dim); }
+  .chat input::placeholder { color: #5e6e62; }
+  .status { max-width: 30%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--muted); padding: 0 4px; }
+  .status::before { content: ""; display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: var(--green); vertical-align: 1px; }
+  .status.off::before { background: var(--danger); }
+  .label { display: inline; }
+  .mini { display: flex; align-items: center; gap: 2px; flex: 0 1 230px; min-width: 120px; }
+  .mini[hidden] { display: none; }
+  .mini .icon-btn { width: 36px; height: 36px; padding: 0; justify-content: center; color: var(--green); }
+  .mini input { flex: 1; min-width: 50px; accent-color: var(--green); }
+  .mini-time { padding: 0 4px; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* --- panneaux ---------------------------------------------------------------------------- */
+  .panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(440px, 100vw); overflow-y: auto; padding: 18px 20px 120px; background: var(--panel); border-left: 1px solid var(--line); z-index: 6; box-shadow: -30px 0 80px #0009; }
+  .panel header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .panel h2 { margin: 0; font-size: 17px; font-weight: 600; }
+  .panel h3 { margin: 22px 0 10px; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .hint { margin: 0 0 6px; font-size: 13px; line-height: 1.45; color: var(--muted); }
+  kbd { padding: 1px 6px; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; border: 1px solid var(--line-strong); border-bottom-width: 2px; border-radius: 5px; color: var(--text); }
+  .cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .card { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 8px 9px; background: #0007; border: 1px solid var(--line); border-radius: var(--radius); text-align: center; }
+  .card:hover { border-color: var(--line-strong); }
+  .card[aria-pressed="true"] { border-color: var(--green); box-shadow: 0 0 0 1px var(--green) inset; }
+  .card canvas { display: block; height: 76px; aspect-ratio: 2; max-width: 100%; margin-bottom: 4px; background: #000; border-radius: 4px; }
+  .card[data-screen="round"] canvas { aspect-ratio: 1; border-radius: 50%; }
+  .card[data-screen="wide"] canvas { aspect-ratio: 1.3333; }
+  .card .name { font-size: 14px; font-weight: 600; }
+  .card .note { font-size: 12px; color: var(--muted); }
+  .custom { display: grid; gap: 12px; margin-top: 12px; padding: 14px; border: 1px dashed var(--line-strong); border-radius: var(--radius); }
+  .custom-title { margin: 0; font-size: 13px; font-weight: 600; }
+  .field { display: grid; gap: 7px; font-size: 14px; }
+  .field-head { display: flex; justify-content: space-between; color: var(--text); }
+  .field output { color: var(--green); font-variant-numeric: tabular-nums; }
+  input[type="range"] { width: 100%; accent-color: var(--green); }
+  .notes { margin: 8px 0 10px; padding-left: 18px; max-height: 220px; overflow-y: auto; font-size: 13px; line-height: 1.5; color: var(--muted); }
+  .notes:empty::before { content: "Rien pour l’instant."; margin-left: -18px; }
+  select { padding: 8px 10px; background: #ffffff0a; color: var(--text); border: 1px solid var(--line-strong); border-radius: 10px; font: inherit; }
+  .check { display: flex; align-items: center; gap: 10px; font-size: 14px; cursor: pointer; }
+  .check input { width: 18px; height: 18px; accent-color: var(--green); }
+  .seg { display: inline-flex; padding: 3px; background: #0007; border: 1px solid var(--line); border-radius: 10px; }
+  .seg button { padding: 6px 14px; background: transparent; border: 0; border-radius: 7px; color: var(--muted); }
+  .seg button[aria-pressed="true"] { background: var(--green-dim); color: var(--green); }
+  .stack { display: grid; gap: 16px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .btn { padding: 9px 14px; background: #ffffff0a; border: 1px solid var(--line-strong); border-radius: 10px; font-size: 14px; }
+  .btn:hover { background: #ffffff14; }
+  .btn.danger { color: var(--danger); }
+  .info { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; font-size: 13px; }
+  .info dt { color: var(--muted); }
+  .info dd { margin: 0; overflow-wrap: anywhere; }
+
+  /* --- calques ----------------------------------------------------------------------------- */
+  .toast { position: fixed; top: 18px; left: 50%; transform: translate(-50%, -12px); max-width: min(620px, calc(100vw - 32px)); padding: 10px 16px; background: #1a1d1a; border: 1px solid var(--line-strong); border-radius: 12px; font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s; z-index: 9; }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+  .drop { position: fixed; inset: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 16px; padding: 16px; background: #000c; backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); z-index: 8; }
+  .zone { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; border: 2px dashed var(--line-strong); border-radius: 22px; text-align: center; padding: 16px; transition: border-color .15s, background .15s; }
+  .zone strong { font-size: clamp(22px, 3vw, 34px); }
+  .zone span { color: var(--muted); font-size: 14px; max-width: 30ch; }
+  .zone.over { border-color: var(--green); background: #46ff860d; }
+  .wake { position: fixed; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 96px; background: transparent; border: 0; z-index: 7; }
+  .wake span { padding: 12px 20px; background: var(--green); color: #000; font-weight: 600; border-radius: 999px; box-shadow: 0 10px 40px #46ff8640; }
+
+  @media (max-width: 640px) {
+    .label, .status, .mini-time { display: none; }
+    .stage { padding-bottom: 96px; }
+    #screen { width: min(calc(100vw - 52px), calc((100dvh - 230px) * var(--ratio))); }
+    .drop { grid-template-columns: 1fr; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .dock, .toast, .bezel, .caption, .stage { transition: none; }
+    .zzz span { animation: none; }
+  }
+</style>
+</head>
+<body>
+<main class="stage">
+  <div class="bezel" id="bezel" data-screen="rect">
+    <canvas id="screen" role="img" aria-label="Le visage d’Eli"></canvas>
+    <div class="zzz" aria-hidden="true"><span>z</span><span>z</span><span>Z</span></div>
+  </div>
+  <p class="caption" id="caption" aria-live="polite"></p>
+</main>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<footer class="dock" id="dock">
+  <button class="icon-btn" id="btn-themes" type="button" title="Changer de visage (V)">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="4"/><path d="M8.5 10v2.5M15.5 10v2.5"/></svg>
+    <span class="label">Visages</span>
+  </button>
+  <button class="icon-btn mic" id="btn-mic" type="button" title="Maintiens pour parler (ou maintiens Espace)" aria-label="Maintiens pour parler">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg>
+  </button>
+  <form class="chat" id="chat" autocomplete="off">
+    <input id="chat-input" type="text" maxlength="2000" enterkeyhint="send" placeholder="Écris-lui quelque chose…" aria-label="Message pour Eli">
+  </form>
+  <div class="mini" id="mini" hidden>
+    <button class="icon-btn" id="mini-play" type="button" title="Lecture / pause (P)" aria-label="Pause">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path id="mini-icon" d="M9 6v12M15 6v12"/></svg>
+    </button>
+    <input id="mini-seek" type="range" min="0" max="1" step="0.001" value="0" aria-label="Position dans le morceau">
+    <span class="mini-time" id="mini-time">0:00</span>
+  </div>
+  <span class="status" id="status" aria-live="polite">Connexion…</span>
+  <button class="icon-btn" id="btn-settings" type="button" title="Réglages" aria-label="Réglages">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+  </button>
+</footer>
+
+<section class="panel" id="panel-themes" hidden aria-label="Visages">
+  <header>
+    <h2>Visages</h2>
+    <button class="icon-btn" type="button" data-close title="Fermer (Échap)" aria-label="Fermer">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </header>
+  <p class="hint">Même comportement, rendus différents. <kbd>←</kbd> <kbd>→</kbd> pour passer d’un visage à l’autre sans ouvrir ce panneau.</p>
+  <div id="theme-groups"></div>
+  <div class="custom" id="custom">
+    <p class="custom-title">Réglages du visage « Sur mesure »</p>
+    <label class="field">
+      <span class="field-head">Densité <output id="c-cols-out"></output></span>
+      <input id="c-cols" type="range" min="16" max="64" step="2">
+    </label>
+    <div class="seg" role="group" aria-label="Forme des points">
+      <button type="button" data-shape="carre">Carrés</button>
+      <button type="button" data-shape="perle">Perles</button>
+    </div>
+    <label class="check"><input id="c-bg" type="checkbox"> LED éteintes visibles</label>
+  </div>
+</section>
+
+<section class="panel" id="panel-settings" hidden aria-label="Réglages">
+  <header>
+    <h2>Réglages</h2>
+    <button class="icon-btn" type="button" data-close title="Fermer (Échap)" aria-label="Fermer">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </header>
+  <div class="stack">
+    <label class="field">
+      <span class="field-head">Avance de la bouche sur le son <output id="s-lead-out"></output></span>
+      <input id="s-lead" type="range" min="-100" max="200" step="10">
+      <span class="hint">Si la bouche semble en retard, augmente ; en avance, diminue. Utile avec un casque Bluetooth (latence).</span>
+    </label>
+    <label class="field">
+      <span class="field-head">Volume</span>
+      <input id="s-volume" type="range" min="0" max="1" step="0.05">
+    </label>
+    <label class="field">
+      <span class="field-head">Voix</span>
+      <select id="s-voice"></select>
+      <span class="hint" id="s-voice-hint">Toutes locales. Les voix Piper se téléchargent au premier choix (~60 Mo).</span>
+    </label>
+    <label class="check"><input id="s-catvoice" type="checkbox"> Voix de chat sur les visages de chats (plus aiguë)</label>
+    <label class="check"><input id="s-captions" type="checkbox"> Sous-titres</label>
+    <label class="check"><input id="s-mouse" type="checkbox"> Le regard suit la souris (simule le capteur)</label>
+    <label class="check"><input id="s-snore" type="checkbox"> Ronfle en dormant (les chats ronronnent)</label>
+    <div>
+      <h3>Sons</h3>
+      <p class="hint">Glisse un fichier audio sur la fenêtre, ou :</p>
+      <div class="row">
+        <button class="btn" id="s-speech-file" type="button">Faire parler un fichier…</button>
+        <button class="btn" id="s-music-file" type="button">Faire chanter un morceau…</button>
+      </div>
+      <input id="file" type="file" accept="audio/*,video/mp4,.m4a,.flac,.opus,.caf" hidden>
+    </div>
+    <div>
+      <h3>Conversation</h3>
+      <p class="hint">Maintiens <kbd>Espace</kbd> ou le bouton micro pour parler. Commence un message par <kbd>&gt;</kbd> pour qu’il le dise tel quel, sans réfléchir.</p>
+      <div class="row">
+        <button class="btn" id="s-stop" type="button">Couper la parole</button>
+        <button class="btn danger" id="s-reset" type="button">Oublier la conversation</button>
+      </div>
+    </div>
+    <div>
+      <h3>Souvenirs</h3>
+      <p class="hint">Ce qu’Eli retient de vous deux, mis à jour après chaque conversation. Modifiable à la main dans <code>memory/souvenirs.md</code>.</p>
+      <ul class="notes" id="s-notes"></ul>
+      <div class="row">
+        <button class="btn" id="s-intro" type="button">Faire connaissance</button>
+        <button class="btn danger" id="s-forget" type="button">Tout oublier</button>
+      </div>
+    </div>
+    <div>
+      <h3>Moteur</h3>
+      <dl class="info" id="info"></dl>
+    </div>
+  </div>
+</section>
+
+<div class="drop" id="drop" hidden>
+  <div class="zone" data-kind="speech"><strong>Parler</strong><span>Une voix : la bouche suit chaque syllabe.</span></div>
+  <div class="zone" data-kind="music"><strong>Chanter</strong><span>Un morceau : il danse sur le tempo et chante sur la voix isolée.</span></div>
+</div>
+
+<button class="wake" id="wake" type="button" hidden><span>Clique pour réveiller Eli (le son a besoin d’un clic)</span></button>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

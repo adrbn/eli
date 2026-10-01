@@ -1,0 +1,12 @@
+[project]
+name = "eli"
+version = "0.1.0"
+description = "Visage robot parlant : simulateur Mac (lip sync, musique, conversation LLM)"
+requires-python = ">=3.10"
+dependencies = [
+    "piper-tts>=1.3",
+    "numpy",
+    "onnxruntime",
+    "onnx>=1.23.1",
+    "vosk==0.3.44",
+]
