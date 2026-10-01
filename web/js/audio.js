@@ -214,9 +214,15 @@ export class Mic {
     this.chunks = null;
     this.level = 0;
     this.closeTimer = 0;
+    this.taps = new Set(); // écoute permanente : reçoit chaque bloc (échantillons, niveau), garde le micro ouvert
   }
 
   async start() {
+    await this.open();
+    this.chunks = [];
+  }
+
+  async open() {
     clearTimeout(this.closeTimer);
     const ctx = this.player.ensure();
     if (!this.stream) {
@@ -236,9 +242,9 @@ export class Mic {
         for (let i = 0; i < x.length; i++) s += x[i] * x[i];
         this.level = Math.min(1, Math.max(0, (10 * Math.log10(s / x.length + 1e-12) + 60) / 45));
         if (this.chunks) this.chunks.push(x.slice());
+        for (const tap of this.taps) tap(x, this.level);
       };
     }
-    this.chunks = [];
   }
 
   // Arrête l'enregistrement : un AudioBuffer prêt à convertir, ou null si rien n'a été capté.
@@ -249,8 +255,12 @@ export class Mic {
     clearTimeout(this.closeTimer);
     this.closeTimer = setTimeout(() => this.close(), 30000);
     const n = chunks ? chunks.reduce((a, c) => a + c.length, 0) : 0;
-    if (!n) return null;
-    const ctx = this.player.ensure(), buffer = ctx.createBuffer(1, n, ctx.sampleRate), out = buffer.getChannelData(0);
+    return n ? this.buffer(chunks) : null;
+  }
+
+  buffer(chunks) {
+    const n = chunks.reduce((a, c) => a + c.length, 0);
+    const buffer = this.player.ensure().createBuffer(1, n, this.player.ctx.sampleRate), out = buffer.getChannelData(0);
     let o = 0;
     for (const c of chunks) {
       out.set(c, o);
@@ -260,7 +270,7 @@ export class Mic {
   }
 
   close() {
-    if (!this.stream) return;
+    if (!this.stream || this.taps.size) return;
     this.stream.getTracks().forEach((t) => t.stop());
     this.src.disconnect();
     this.node.disconnect();

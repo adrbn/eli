@@ -89,6 +89,7 @@ The first run downloads a Piper voice (~60 MB) and the vocal-separation model (~
 | Type in the bar, <kbd>Enter</kbd> | It thinks (eyes searching up), then answers out loud. <kbd>Enter</kbd> anywhere focuses the bar. |
 | Start the message with `>` | It says your text verbatim, no LLM involved |
 | Hold <kbd>Space</kbd> (or the mic button) | It listens; release to send: transcription → answer → voice |
+| Say **"Eli, …"** (Settings → *Écoute permanente*) | Hands-free. A small offline model flags anything that sounds like its name; only those snippets are transcribed. "Eli" alone: it opens its eyes and waits for the rest |
 | Talk while it talks | It stops and abandons its answer |
 | Drop an audio file on the window | **Talk** zone: the mouth follows the voice. **Sing** zone: it dances, then sings the isolated vocals |
 | Move the mouse | Its gaze follows you (that's the simulated sensor) |
@@ -259,7 +260,7 @@ Eli's personality is `DEFAULT_PERSONA` in `server/brain.py`; drop a `persona.txt
 - [x] Memory with consolidation, first-run intro
 - [x] Cat faces, meows, purring
 - [ ] Karaoke with synced lyrics (LRCLIB)
-- [ ] Local wake word: "Eli"
+- [x] Wake word: say "Eli, …" hands-free (local Vosk gate, then your STT confirms; Settings → always listening)
 - [ ] Morning brief
 - [ ] ESP32 build + servo neck
 - [ ] Several Elis talking to each other

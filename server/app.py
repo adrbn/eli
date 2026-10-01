@@ -18,11 +18,13 @@ Rôle 2 · le cerveau (brain.py), qui ne parle à l'écran que par ce protocole 
   POST /brain/reset   (?all=1 : le carnet aussi)    oublie la conversation
   POST /brain/intro                                 les présentations : Eli pose quelques questions pour te connaître
   POST /brain/meow                                  un miaou (visages de chat)
+  POST /brain/hotword  corps = WAV 16 kHz mono      écoute permanente : est-ce « Eli, … » ? (voir hotword.py)
   GET  /api/status, /api/voices, /api/memory        état, voix au choix (POST /voice {"id"}), souvenirs
 """
 from __future__ import annotations
 
 import hashlib
+import io
 import ipaddress
 import json
 import logging
@@ -37,11 +39,13 @@ import threading
 import time
 import urllib.parse
 import uuid
+import wave
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from brain import Brain, FaceClient  # noqa: E402
+from hotword import Hotword, command  # noqa: E402
 from stems import Stems  # noqa: E402
 from voice import make_tts  # noqa: E402
 
@@ -207,6 +211,17 @@ def make_stems(cfg: dict, on_ready, on_progress) -> Stems | None:
         return None
 
 
+def pcm16k(data: bytes) -> bytes | None:
+    """Les échantillons d'un WAV 16 bits mono 16 kHz, ou None si ce n'en est pas un."""
+    try:
+        with wave.open(io.BytesIO(data)) as wf:
+            if (wf.getnchannels(), wf.getsampwidth(), wf.getframerate()) != (1, 2, 16000):
+                return None
+            return wf.readframes(wf.getnframes())
+    except (wave.Error, EOFError):
+        return None
+
+
 class App:
     def __init__(self, cfg: dict, port: int, tts=None, with_stems: bool = True):
         self.cfg, self.port = cfg, port
@@ -216,6 +231,7 @@ class App:
         self.stems = make_stems(cfg, self._stem_ready, self._stem_progress) if with_stems else None
         self.brain = Brain(cfg, self.tts, FaceClient(cfg.get("FACE_URL") or f"http://127.0.0.1:{port}"), self.hub.publish,
                            lambda: self.hub.state["theme"])
+        self.hotword = Hotword(ROOT / "voices")
 
     def _stem_ready(self, clip_id: str, sha: str, error: str | None) -> None:
         if error:
@@ -398,6 +414,7 @@ class Handler(BaseHTTPRequestHandler):
             "/brain/reset": self._post_reset,
             "/brain/intro": self._post_intro,
             "/brain/meow": self._post_meow,
+            "/brain/hotword": self._post_hotword,
         }.get(url.path)
         if route is None:
             return self._error(404, "route inconnue")
@@ -543,6 +560,34 @@ class Handler(BaseHTTPRequestHandler):
 
     def _post_meow(self, _query: dict) -> None:
         self._json(202, {"ok": True, "turn": self.app.brain.start("meow", None)})
+
+    def _post_hotword(self, _query: dict) -> None:
+        """Un bout de phrase entendu en écoute permanente : est-ce qu'on parle à Eli ?
+        Réponses : {"wake": false} ; {"wake": true, "listen": true} (son nom seul : il écoute la suite) ;
+        {"wake": true, "turn": N} (« Eli, … » : il répond)."""
+        data = self._audio_body()
+        if data is None:
+            return
+        pcm = pcm16k(data)
+        if pcm is None:
+            return self._error(400, "WAV 16 kHz mono 16 bits attendu")
+        app = self.app
+        try:
+            if not app.hotword.maybe(pcm):
+                return self._json(200, {"wake": False})
+            if len(pcm) < 2 * 16000:  # moins d'une seconde : son nom seul, inutile de transcrire
+                return self._json(200, {"wake": True, "listen": True})
+            text, provider = app.brain.transcribe(data)
+        except Exception as exc:  # modèle absent, Vosk pas installé, oreilles en panne
+            log.warning("mot de réveil en échec : %s", exc)
+            return self._error(503, f"écoute de « Eli » indisponible : {exc}")
+        cmd = command(text)
+        if cmd is None:
+            return self._json(200, {"wake": False})
+        if not cmd:
+            return self._json(200, {"wake": True, "listen": True})
+        app.hub.publish("brain", {"stage": "heard", "text": text, "provider": provider})
+        self._json(200, {"wake": True, "turn": app.brain.start("chat", cmd)})
 
     def _post_reset(self, query: dict) -> None:
         self.app.brain.reset(everything=query.get("all") == "1")

@@ -3,6 +3,7 @@
 import { HOP, SR, crossed, encodeWav, mouthAt, sample } from './analysis.js';
 import { Mic, Player, to16k } from './audio.js';
 import { Face } from './face.js';
+import { Segmenter } from './hotword.js';
 import { Sleeper } from './sleep.js';
 import { THEMES, getCustom, setCustom, themeById } from './themes.js';
 
@@ -12,6 +13,7 @@ const CLIENT = Math.random().toString(36).slice(2, 10);
 const AUDIO_FILE = /\.(wav|mp3|m4a|aac|flac|ogg|oga|opus|aiff?|caf|webm|mp4)$/i;
 const MAX_FILE = 150 * 1024 * 1024;
 const MAX_PTT_MS = 30000;
+const FOLLOW_MS = 6000; // après « Eli » seul, le temps qu'il t'écoute avant de laisser tomber
 
 // Réglages retenus par ce navigateur ; le stockage peut être indisponible (navigation privée) : on s'en passe.
 const store = {
@@ -39,6 +41,7 @@ let settings = {
   captions: saved.captions !== false,
   mouse: saved.mouse !== false,
   snore: saved.snore !== false,
+  hotword: saved.hotword === true,
 };
 const savedCustom = store.get('custom', {});
 setCustom({
@@ -283,7 +286,7 @@ function bindCustom() {
 }
 
 function bindSettings() {
-  const lead = $('#s-lead'), leadOut = $('#s-lead-out'), volume = $('#s-volume'), captions = $('#s-captions'), mouse = $('#s-mouse'), snore = $('#s-snore');
+  const lead = $('#s-lead'), leadOut = $('#s-lead-out'), volume = $('#s-volume'), captions = $('#s-captions'), mouse = $('#s-mouse'), snore = $('#s-snore'), hot = $('#s-hotword');
   const update = (patch) => {
     settings = { ...settings, ...patch };
     store.set('settings', settings);
@@ -295,7 +298,13 @@ function bindSettings() {
   captions.checked = settings.captions;
   mouse.checked = settings.mouse;
   snore.checked = settings.snore;
+  hot.checked = settings.hotword;
   update({});
+  if (settings.hotword) hotword(true);
+  hot.addEventListener('change', () => {
+    update({ hotword: hot.checked });
+    hotword(hot.checked);
+  });
   snore.addEventListener('change', () => update({ snore: snore.checked }));
   lead.addEventListener('input', () => update({ lead: Number(lead.value) }));
   volume.addEventListener('input', () => update({ volume: Number(volume.value) }));
@@ -440,6 +449,68 @@ async function pttEnd() {
   }
 }
 
+// --- « Eli, … » : écoute permanente ------------------------------------------------------------
+// Chaque bout de phrase part au serveur, qui ne transcrit que ce qui ressemble à son nom (voir server/hotword.py).
+let segmenter = null, hotBusy = false, followUntil = 0;
+
+async function hotword(on) {
+  el.mic.classList.toggle('ear', on);
+  if (!on) {
+    mic.taps.delete(hotTap);
+    segmenter = null;
+    followUntil = 0;
+    mic.close();
+    return;
+  }
+  try {
+    await mic.open();
+    segmenter = new Segmenter(player.ctx.sampleRate, hotSegment);
+    mic.taps.add(hotTap);
+  } catch (err) {
+    el.mic.classList.remove('ear');
+    $('#s-hotword').checked = false;
+    settings = { ...settings, hotword: false };
+    store.set('settings', settings);
+    toast(micError(err));
+  }
+}
+
+// Ni pendant qu'il parle (il s'entendrait), ni pendant « appuyer pour parler », ni dans un onglet passif.
+function hotTap(x, level) {
+  if (ptt || passive || hotBusy || player.busy()) segmenter?.reset();
+  else segmenter?.push(x, level);
+}
+
+async function hotSegment(chunks) {
+  hotBusy = true;
+  const follow = performance.now() < followUntil;
+  followUntil = 0;
+  try {
+    const wav = encodeWav(await to16k(mic.buffer(chunks)), SR);
+    if (follow) { // il attendait la suite de « Eli ? »
+      serverMode = 'think';
+      const { turn } = await post('/brain/listen', wav, 'audio/wav');
+      minTurn = Math.max(minTurn, turn);
+      return;
+    }
+    const res = await post('/brain/hotword', wav, 'audio/wav');
+    if (!res.wake) return;
+    face.wake();
+    if (res.listen) {
+      followUntil = performance.now() + FOLLOW_MS;
+      note('Oui ? Je t’écoute…');
+    } else {
+      minTurn = Math.max(minTurn, res.turn);
+      serverMode = 'think';
+    }
+  } catch (err) {
+    serverMode = 'idle';
+    report(err);
+  } finally {
+    hotBusy = false;
+  }
+}
+
 function micError(err) {
   if (err?.name === 'NotAllowedError') return 'Micro refusé : autorise-le pour cette page (icône dans la barre d’adresse), puis réessaie.';
   if (err?.name === 'NotFoundError') return 'Aucun micro trouvé.';
@@ -517,7 +588,7 @@ function sense(now) {
     caption('');
   }
   lastItem = item;
-  if (ptt) s.mode = 'listen';
+  if (ptt || performance.now() < followUntil) s.mode = 'listen';
   return s;
 }
 

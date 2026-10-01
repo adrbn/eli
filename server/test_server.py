@@ -195,6 +195,22 @@ class ServerTest(unittest.TestCase):
         code, body = self.post("/brain/meow")
         self.wait_for("clip", lambda d: d["turn"] == body["turn"] and d["text"] == "Miaou !")
 
+    def test_hotword_only_answers_when_named(self):
+        app = self.server.app
+        self.assertEqual(self.post("/brain/hotword", b"RIFFnope", "audio/wav")[0], 400)
+        heard = {"maybe": False, "text": ""}
+        app.hotword.maybe = lambda pcm: heard["maybe"]
+        app.brain.transcribe = lambda wav: (heard["text"], "fake")
+        self.assertEqual(self.post("/brain/hotword", tiny_wav(2.0), "audio/wav")[1], {"wake": False})
+        heard["maybe"] = True
+        self.assertEqual(self.post("/brain/hotword", tiny_wav(0.6), "audio/wav")[1], {"wake": True, "listen": True})
+        heard["text"] = "Il y a du monde."
+        self.assertEqual(self.post("/brain/hotword", tiny_wav(2.0), "audio/wav")[1], {"wake": False})
+        heard["text"] = "Hé Eli, dis bonjour."
+        code, body = self.post("/brain/hotword", tiny_wav(2.0), "audio/wav")
+        self.assertTrue(body["wake"] and body["turn"])
+        self.wait_for("brain", lambda d: d.get("stage") == "heard" and d["text"] == "Hé Eli, dis bonjour.")
+
     def test_human_stop_cancels_the_turn(self):
         self.assertEqual(self.post("/stop")[0], 200)
         self.wait_for("stop", lambda d: d["turn"] == self.server.app.brain.turn)

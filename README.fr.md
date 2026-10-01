@@ -91,6 +91,7 @@ Le premier lancement télécharge une voix Piper (~60 Mo) et le modèle qui isol
 | Écrire dans la barre, <kbd>Entrée</kbd> | Il réfléchit (yeux qui cherchent en haut), puis répond à voix haute. <kbd>Entrée</kbd> n'importe où place le curseur dans la barre. |
 | Commencer le message par `>` | Il dit le texte tel quel, sans passer par le LLM |
 | Maintenir <kbd>Espace</kbd> (ou le bouton micro) | Il t'écoute ; au relâchement : transcription → réponse → voix |
+| Dire **« Eli, … »** (Réglages → *Écoute permanente*) | Sans les mains. Un petit modèle hors ligne repère ce qui ressemble à son nom ; seuls ces bouts sont transcrits. « Eli » tout seul : il ouvre grand les yeux et attend la suite |
 | Parler pendant qu'il parle | Il se tait et abandonne sa réponse |
 | Glisser un fichier audio sur la fenêtre | Zone **Parler** : la bouche suit la voix. Zone **Chanter** : il danse, puis chante sur la voix isolée |
 | Bouger la souris | Son regard te suit (c'est le capteur, simulé) |
@@ -268,7 +269,7 @@ La personnalité d'Eli est dans `DEFAULT_PERSONA` (`server/brain.py`) ; crée un
 - [x] Mémoire qui se consolide, présentations au premier lancement
 - [x] Visages de chat, miaous, ronronnements
 - [ ] Karaoké avec paroles synchronisées (LRCLIB)
-- [ ] Mot d'éveil local : « Eli »
+- [x] Mot de réveil : dis « Eli, … » sans les mains (filtre local Vosk, puis tes oreilles confirment ; Réglages → écoute permanente)
 - [ ] Le point du matin
 - [ ] Version ESP32 + cou motorisé (servo)
 - [ ] Plusieurs Eli qui se parlent entre eux
