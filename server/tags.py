@@ -26,7 +26,8 @@ HINT = {
         "avant la recherche : ne dis jamais que tu ne le trouves pas ou qu'il n'existe pas, annonce juste que tu le "
         "lances (si la bibliothèque ne l'a pas, on le lui dira après). Tu ne sais pas encore quel morceau sortira et "
         "tu l'annonceras toi-même juste avant : dis seulement quelques mots de réaction, à varier à chaque fois (pas "
-        "toujours « tout de suite »), sans redire le titre."
+        "toujours « tout de suite »), sans redire le titre. Pour « un autre dans le même style », « un truc similaire » "
+        "ou « pas le même », mets [musique: pareil] : il en choisit un autre proche de celui qui joue."
     ),
     "en": (
         "Start each sentence that expresses an emotion with one mood tag, a single one per sentence, among: "
@@ -38,7 +39,8 @@ HINT = {
         "say you can't find it or that it doesn't exist, just announce you're putting it on (if the library lacks it, "
         "they'll be told afterwards). You don't know yet which song will come out, and you'll name it yourself right "
         "before it starts: just react in a few words, different each time (not always \"right away\"), without "
-        "repeating the title."
+        "repeating the title. For \"another one like this\", \"something similar\" or \"not the same one\", use "
+        "[music: similar]: it picks another one close to the one playing."
     ),
 }
 

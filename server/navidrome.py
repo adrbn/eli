@@ -127,6 +127,22 @@ class Navidrome:
             return None
         return self._song(self._pick(query, songs, avoid))
 
+    def similar(self, song: dict, avoid: frozenset[str] | set[str] = frozenset()) -> dict | None:
+        """Another song in the same vein: same artist or same genre tag, never one just played (nor this one)."""
+        if not self.auth:
+            raise MusicError("no music library configured")
+        artist = song.get("artist") or ""
+        pool = [s for s in self._search(artist, 30) if s.get("artist") == artist] if artist else []
+        tags = {song.get("genre"), *(s.get("genre") for s in pool)} - {None, ""}  # untagged song: its artist's genres
+        for tag in sorted(tags)[:3]:
+            pool += self._call(self.auth, "getRandomSongs", size=20, genre=tag).get("randomSongs", {}).get("song", [])
+        avoid = {*avoid, song.get("id")}
+        fresh = [s for s in pool if s.get("id") not in avoid]
+        if not fresh:  # nothing alike in the library: a random one rather than the same again
+            fresh = [s for s in self._call(self.auth, "getRandomSongs", size=10).get("randomSongs", {}).get("song", [])
+                     if s.get("id") not in avoid]
+        return self._song(random.choice(fresh)) if fresh else None
+
     @staticmethod
     def _pick(query: str, songs: list[dict], avoid: frozenset[str] | set[str] = frozenset()) -> dict:
         """Navidrome's first hit isn't always it ("Adele" → a duet featuring an Adèle): an artist named exactly (accents

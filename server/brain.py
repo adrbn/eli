@@ -26,6 +26,7 @@ from navidrome import MusicError
 from memory import Memory
 
 log = logging.getLogger("eli.brain")
+SIMILAR = re.compile(r"pareil|similaire|similar|same|more like this", re.I)  # [music: similar]: one like the song playing
 
 GROQ = "https://api.groq.com/openai/v1"
 UA = "eli/0.1"  # urllib's default User-Agent sometimes gets blocked by Cloudflare
@@ -409,6 +410,7 @@ class Brain:
 
     # --- mouth --------------------------------------------------------------------------------
     def _answer(self, turn: int, user_text: str) -> None:
+        log.info("heard: %s", user_text[:300])
         if not self.has_llm():
             self._say(turn, self.line("no_brain"), [])
             return
@@ -493,7 +495,14 @@ class Brain:
             return
         self.publish("brain", {"stage": "music", "text": query})
         try:
-            song = self.music.find(query, avoid={s['id'] for s in self.played[-8:]})  # "more Adele": another one
+            avoid = {s['id'] for s in self.played[-8:]}
+            now = self.played[self.place] if 0 <= self.place < len(self.played) else None
+            if SIMILAR.fullmatch(query.strip()):
+                song = self.music.similar(now, avoid) if now else next(iter(self.music.songs("")), None)
+            else:
+                song = self.music.find(query, avoid=avoid)  # "more Adele": another one
+                if song and now and song["id"] == now["id"]:  # "not this one, another like it": it names it again
+                    song = self.music.similar(now, avoid) or song
             if not song:
                 self._say(turn, self.line("not_found"), [], "gêne")
                 return

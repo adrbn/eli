@@ -383,6 +383,15 @@ class ServerTest(unittest.TestCase):
             self.assertEqual([a[1] for a in sent], ["speech", "music"])
             brain.sing(song(7))
             self.assertEqual(len(fetches), 2, "once it played, asking again plays it again")
+
+            brain.music.auth = True
+            brain.music.find = lambda _q, avoid=(): song(7)  # the LLM names the song playing again
+            brain.music.similar = lambda now, avoid=(): song(8) if now["id"] == "s7" else None
+            for query in ("Artist T7", "pareil"):
+                sent[:] = []
+                brain._play(brain.turn, query)
+                self.assertIn("T8", sent[0][2], f"{query!r}: another one like it, not the same again")
+                brain.sing(song(7), announce=False)
         finally:
             brain.music, brain.face, brain.tts, brain.played, brain.place = saved
 
