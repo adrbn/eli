@@ -337,6 +337,16 @@ micro, mets du HTTPS devant Eli, sur la même IP :
 - **Bouche** : l'idée est que le serveur calcule la piste de bouche (le même `analysis.js`) et l'envoie avec le clip ; la carte n'a plus qu'à jouer le son et lire la piste à 100 images/s.
 - **Regard** : un radar mmWave LD2450 donne la position x/y des gens, sans caméra ; une caméra avec détection de visage marche aussi. Dans les deux cas : `POST /gaze`.
 
+## Matériel / ESP32
+
+[`firmware/esp32/`](firmware/esp32/) est un firmware PlatformIO qui fait d'un ESP32-S3 (avec PSRAM) un visage
+interchangeable avec la page. Il répond à `/clip`, `/stop`, `/state`, `/gaze` et `/theme` : il suffit de régler
+`FACE_URL=http://eli.local`. Il dessine la famille Pixel sur un OLED 128×64 (conseillé : le SSD1309 2,42" vert),
+parle via un MAX98357A avec une bouche qui suit les phonèmes, et peut tourner la tête sur deux servos et faire du
+push-to-talk avec un INMP441. Son [README](firmware/esp32/README.md) (en anglais) donne le câblage, la liste
+d'achats (environ 35 à 55 € sur AliExpress) et le calibrage des servos. **Le firmware n'a encore été ni compilé ni
+essayé sur du matériel.** La musique (MP3) n'est pas jouée sur la carte.
+
 <a id="feuille-de-route"></a>
 
 ## Feuille de route

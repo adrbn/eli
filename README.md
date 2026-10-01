@@ -327,6 +327,16 @@ front of Eli, on the same IP:
 - **Mouth**: the plan is for the server to compute the mouth track (the same `analysis.js`) and ship it with the clip; the board then just plays the sound and reads the track at 100 fps.
 - **Gaze**: an LD2450 mmWave radar gives people's x/y without a camera; a camera with face detection works too. Either way: `POST /gaze`.
 
+## Hardware / ESP32
+
+[`firmware/esp32/`](firmware/esp32/) is a PlatformIO firmware that makes an ESP32-S3 (with PSRAM) a drop-in face. It
+answers `/clip`, `/stop`, `/state`, `/gaze` and `/theme`, so you only have to set `FACE_URL=http://eli.local`. It
+draws the Pixel family on a 128×64 OLED (recommended: the green 2.42" SSD1309), speaks through a MAX98357A with the
+mouth following the phonemes, and can turn its head on two servos and do push-to-talk with an INMP441. Its
+[README](firmware/esp32/README.md) has the wiring, the shopping list (about €35–55 from AliExpress) and the servo
+calibration. **The firmware has not been compiled or tried on hardware yet.** Music (MP3) isn't played on the
+board.
+
 ## Roadmap
 
 - [x] Browser simulator with the ESP32 protocol
