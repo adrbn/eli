@@ -20,7 +20,7 @@ export const MOODS = {
   tristesse: { sc: 0.94, sq: 0.25, ang: -0.9, ty: 0.35, rest: { o: 0.03, w: 0.15, r: 0.4, t: 0 } },
   colère: { sc: 0.95, sq: 0.3, ang: 1, rest: { o: 0.05, w: 0.45, r: 0, t: 1 } },
   amour: { hap: 0.75, sc: 1.08, pulse: 0.07, rest: { o: 0.03, w: 0.5, r: 0.3, t: 0 } },
-  malice: { hap: 0.45, ang: 0.45, tx: 0.45, rest: { o: 0.03, w: 0.5, r: 0, t: 0 } },
+  malice: { hap: 0.6, sq: 0.15, tx: 0.45, ty: -0.1, rest: { o: 0.03, w: 0.55, r: 0, t: 0 } }, // sans paupières en colère : ça lisait « vénère »
   gêne: { hap: 0.35, sc: 0.93, ty: 0.3, tx: -0.6, rest: { o: 0.02, w: 0.2, r: 0.2, t: 0 } },
 };
 
@@ -33,7 +33,7 @@ const GESTURES = [
 
 export class Face {
   constructor() {
-    this.e = { gx: 0, gy: 0, tx: 0, ty: 0, bl: 0, bt: 0, nb: 1.5, hap: 0, sc: 1, bo: 0, sa: 0, av: 0, sq: 0, sleep: 0, ang: 0 };
+    this.e = { gx: 0, gy: 0, tx: 0, ty: 0, bl: 0, bt: 0, nb: 1.5, hap: 0, sc: 1, bo: 0, sa: 0, av: 0, sq: 0, sleep: 0, ang: 0, cl: 0, tn: 0, shut: 0, cool: 0 };
     this.mood = null; // une clé de MOODS, posée par la page pendant la phrase qui la porte
     this.m = { ...REST };
     this.T = 0;
@@ -128,6 +128,7 @@ export class Face {
       e.hap = ease(e.hap, s.vocal ? 0.55 * (1 - Math.max(0, p)) : 1, 5, dt);
       e.sc = ease(e.sc, 1 + 0.06 * (s.energy || 0) + 0.05 * Math.max(0, -p), 6, dt);
       e.sq = ease(e.sq, 0.75 * Math.max(0, p), 6, dt);
+      this.feel(dt, s);
     } else if (s.mode === 'listen') {
       this.relax(dt, 1.1 + 0.12 * (s.micLevel || 0));
       if (this.T % 3.2 < dt) e.bo = Math.max(e.bo, 0.45); // petits hochements
@@ -155,8 +156,9 @@ export class Face {
     } else e.bl = 0;
     e.bo *= Math.exp(-dt * 7);
 
+    if (s.mode !== 'sing') this.feel(dt, null);
     const md = !asleep && MOODS[this.mood];
-    e.ang = ease(e.ang, md?.ang || 0, 6, dt);
+    e.ang = ease(e.ang, md?.ang || (e.cl > 0.3 ? -0.35 * e.cl : 0), 6, dt);
     if (md?.bounce && this.T % 0.32 < dt) e.bo = Math.max(e.bo, md.bounce); // rire : petits sursauts
     const pulse = md?.pulse ? md.pulse * Math.max(0, Math.sin(this.T * 7.5)) ** 8 : 0; // amour : un cœur qui bat
 
@@ -179,9 +181,24 @@ export class Face {
       gesture: started,
       asleep,
       phase,
-      eyes: { gx: e.gx, gy: e.gy, open: (1 - e.bl * 0.93) * (1 - e.sq * 0.4) * (1 - e.sleep * 0.9), hap: e.hap, sc: e.sc + breathe + pulse, bo: e.bo, ang: e.ang },
+      eyes: { gx: e.gx, gy: e.gy, open: (1 - e.bl * 0.93) * (1 - e.sq * 0.4) * (1 - e.sleep * 0.9) * (1 - e.cl * 0.9), hap: e.hap, sc: e.sc + breathe + pulse, bo: e.bo, ang: e.ang },
       mouth: { ...m },
     };
+  }
+
+  // Les moments forts : sur une note tenue, aiguë et puissante (ou un sommet du morceau sans voix isolée), il ferme
+  // les yeux comme un chanteur qui la vit, puis les rouvre ; jamais plus de 3,5 s, et pas deux fois de suite.
+  feel(dt, s) {
+    const e = this.e, p = s?.pitch || 0, o = s?.mouth?.o || 0, en = s?.energy || 0;
+    const strain = s && (s.vocal ? en > 0.8 && o > 0.35 && p > 0.15 : en > 0.93);
+    e.cool -= dt;
+    e.tn = strain ? e.tn + dt : Math.max(0, e.tn - 2 * dt);
+    if (e.shut > 0) {
+      e.shut += dt;
+      if (!strain && e.tn < 0.2 || e.shut > 3.5) { e.shut = 0; e.cool = 5 }
+    } else if (e.tn > 0.45 && e.cool <= 0) e.shut = dt;
+    e.cl = ease(e.cl, e.shut > 0 ? 1 : 0, e.shut > 0 ? 9 : 5, dt);
+    if (e.cl > 0.3) e.ty = Math.min(e.ty, -0.35); // la tête un peu levée
   }
 
   relax(dt, scale) {

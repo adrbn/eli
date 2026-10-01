@@ -1,6 +1,7 @@
 // La bouche suit ce que l'oreille entend : chaque clip est analysé en entier avant d'être joué, puis l'image
 // est calée sur l'horloge audio, au moment où le son sort vraiment des haut-parleurs (latence de sortie déduite).
 import { SR, visemeTrack } from './analysis.js';
+import { t } from './i18n.js';
 
 const worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
 const jobs = new Map();
@@ -12,7 +13,7 @@ worker.onmessage = ({ data }) => {
   else job?.resolve(data.track);
 };
 worker.onerror = (event) => {
-  for (const job of jobs.values()) job.reject(new Error(event.message || 'analyse impossible'));
+  for (const job of jobs.values()) job.reject(new Error(event.message || t('analyse impossible')));
   jobs.clear();
 };
 
@@ -91,7 +92,7 @@ export class Player {
 
   async decode(url) {
     const res = await fetch(url);
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `son introuvable (${res.status})`);
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || t('son introuvable ({status})', { status: res.status }));
     return this.ensure().decodeAudioData(await res.arrayBuffer());
   }
 
@@ -186,7 +187,7 @@ export class Player {
     const seq = (item.stemSeq || 0) + 1;
     item.stemSeq = seq;
     const res = await fetch(url);
-    if (!res.ok) throw new Error(`voix isolée introuvable (${res.status})`);
+    if (!res.ok) throw new Error(t('voix isolée introuvable ({status})', { status: res.status }));
     const pcm = new Int16Array(await res.arrayBuffer(), 44); // WAV 16 bits mono 16 kHz, en-tête de 44 octets
     const x = Float32Array.from(pcm, (v) => v / 32768);
     const minRef = item.track?.level === undefined ? undefined : item.track.level - 12;

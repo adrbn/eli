@@ -1,8 +1,21 @@
 // Les visages. Tous dessinent le même état { T, eyes, mouth } venu de face.js : changer de thème ne change
 // que le rendu, jamais le comportement. Famille Pixel : un écran OLED 128×64 simulé pixel par pixel, ou une
 // matrice de LED (AMOLED). Famille Trait : du vectoriel pour écran rond. Sur l'ESP32, un thème = une fonction de dessin.
-const G = '#46ff86', DIM = '#0e2a18', LIT = 0xff86ff46, OFF = 0xff000000; // couleurs en ABGR (little-endian)
+import { Mask, SCENE, behind, catAnchors, drawExtras, drawScene, pixAnchors } from './looks.js';
+
+let G = '#46ff86', DIM = '#0e2a18', LIT = 0xff86ff46; // l'encre (LIT en ABGR, little-endian) : voir setInk
+const OFF = 0xff000000;
+
+// La couleur de l'encre (« #rrggbb ») : vert par défaut, celle de la tenue quand il chante.
+export function setInk(hex) {
+  if (hex === G) return;
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  G = hex;
+  DIM = `rgb(${Math.round(r * 0.14)},${Math.round(g * 0.14)},${Math.round(b * 0.14)})`; // les LED éteintes, de sa couleur
+  LIT = (0xff000000 | (b << 16) | (g << 8) | r) >>> 0;
+}
 const TAU = 2 * Math.PI;
+const front = (v) => v > 0 && v !== SCENE; // l'accessoire et les notes : devant, comme le visage
 const ease = (a, b, k, dt) => a + (b - a) * (1 - Math.exp(-k * dt));
 
 export const SCREENS = { rect: 2, round: 1, wide: 4 / 3 }; // largeur / hauteur
@@ -91,16 +104,20 @@ function catLit(f, x, y0, minH) {
 }
 
 // Écran OLED 128×64 monochrome : cols×rows cellules de `cell` pixels, `pattern` = pixels allumés par cellule.
-function oled(cols, cell, pattern, lit = pixLit) {
+function oled(cols, cell, pattern, lit = pixLit, anchors = pixAnchors) {
   const rows = cols / 2, x0 = (128 - cols * cell) >> 1, y0 = (64 - rows * cell) >> 1, minH = 0.55 / rows;
   const off = document.createElement('canvas');
   off.width = 128;
   off.height = 64;
-  const ox = off.getContext('2d'), img = ox.createImageData(128, 64), px = new Uint32Array(img.data.buffer);
+  const ox = off.getContext('2d'), img = ox.createImageData(128, 64), px = new Uint32Array(img.data.buffer), mask = new Mask();
+  const face = new Uint8Array(cols * rows);
   return (ctx, W, H, f) => {
     px.fill(OFF);
+    mask.render(f, anchors(f), f.look, f.notes, cols, rows);
+    for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) face[j * cols + i] = front(mask.at(i, j)) || lit(f, ((i + 0.5) / cols) * 2, (j + 0.5) / rows, minH);
     for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
-      if (!lit(f, ((i + 0.5) / cols) * 2, (j + 0.5) / rows, minH)) continue;
+      const v = mask.at(i, j);
+      if (v < 0 || !(face[j * cols + i] || (v > 0.35 && !(v === SCENE && behind(face, cols, rows, i, j))))) continue;
       for (const [a, b] of pattern) px[(y0 + j * cell + b) * 128 + x0 + i * cell + a] = LIT;
     }
     ox.putImageData(img, 0, 0);
@@ -118,11 +135,12 @@ function oled(cols, cell, pattern, lit = pixLit) {
 }
 
 // Matrice de LED couleur (AMOLED) : chaque point s'allume et s'éteint en fondu ; `bg` montre les LED éteintes.
-function dots(opts, lit = pixLit) {
-  let F = new Float32Array(0);
+function dots(opts, lit = pixLit, anchors = pixAnchors) {
+  let F = new Float32Array(0), face = new Uint8Array(0);
+  const mask = new Mask();
   return (ctx, W, H, f, dt) => {
     const { cols, shape, bg } = opts(), rows = cols / 2, minH = 0.55 / rows;
-    if (F.length !== cols * rows) F = new Float32Array(cols * rows);
+    if (F.length !== cols * rows) [F, face] = [new Float32Array(cols * rows), new Uint8Array(cols * rows)];
     const c = Math.min(W / cols, H / rows), X = (W - c * cols) / 2, Y = (H - c * rows) / 2;
     const dot = shape === 'perle'
       ? (x, y) => { ctx.moveTo(x + c * 0.9, y + c / 2); ctx.arc(x + c / 2, y + c / 2, c * 0.4, 0, TAU) }
@@ -136,9 +154,11 @@ function dots(opts, lit = pixLit) {
       ctx.fill();
     }
     ctx.fillStyle = G;
+    mask.render(f, anchors(f), f.look, f.notes, cols, rows);
+    for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) face[j * cols + i] = front(mask.at(i, j)) || lit(f, ((i + 0.5) / cols) * 2, (j + 0.5) / rows, minH);
     for (let j = 0; j < rows; j++) for (let i = 0; i < cols; i++) {
-      const k = j * cols + i;
-      F[k] = ease(F[k], lit(f, ((i + 0.5) / cols) * 2, (j + 0.5) / rows, minH) ? 1 : 0, 30, dt);
+      const k = j * cols + i, v = mask.at(i, j), cut = v === SCENE && behind(face, cols, rows, i, j);
+      F[k] = ease(F[k], v < 0 ? 0 : Math.max(cut ? 0 : v, face[k]), 30, dt);
       if (F[k] < 0.02) continue;
       ctx.globalAlpha = F[k];
       ctx.beginPath();
@@ -150,13 +170,20 @@ function dots(opts, lit = pixLit) {
 }
 
 // Dessin vectoriel dans un repère fixe (w×h) mis à l'échelle de l'écran. `fade` > 0 : rémanence (oscilloscope).
-function vector(w, h, draw, fade = 0) {
+// xf = [k, ox, oy] : où tombe le repère 2:1 des extras (notes, tenues) dans ce dessin.
+function vector(w, h, draw, fade = 0, xf = [100, 10, 50], anchors = pixAnchors) {
   return (ctx, W, H, f, dt) => {
     const s = Math.min(W / w, H / h);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.fillStyle = fade ? `rgba(0,0,0,${1 - Math.exp(-dt * fade)})` : '#000';
     ctx.fillRect(0, 0, W, H);
     ctx.setTransform(s, 0, 0, s, (W - w * s) / 2, (H - h * s) / 2);
+    if (f.look) { // le décor d'abord, atténué : le visage passe devant
+      ctx.save();
+      ctx.transform(xf[0], 0, 0, xf[0], xf[1], xf[2]);
+      drawScene(ctx, f, f.look, G, '#000', 0.3);
+      ctx.restore();
+    }
     ctx.fillStyle = G;
     ctx.strokeStyle = G;
     ctx.lineCap = 'round';
@@ -164,6 +191,10 @@ function vector(w, h, draw, fade = 0) {
     draw(ctx, f, s);
     ctx.shadowBlur = 0;
     ctx.globalAlpha = 1;
+    if (f.look || f.notes?.length) {
+      ctx.transform(xf[0], 0, 0, xf[0], xf[1], xf[2]);
+      drawExtras(ctx, f, anchors(f), f.look, f.notes, G, '#000', null);
+    }
     ctx.setTransform(1, 0, 0, 1, 0, 0);
   };
 }
@@ -337,8 +368,10 @@ function matLit(f, u, v) {
 }
 
 function matrice() {
-  const N = 19, F = new Float32Array(N * N);
+  const N = 19, F = new Float32Array(N * N), face = new Uint8Array(N * N), mask = new Mask();
   return (ctx, W, H, f, dt) => {
+    mask.render(f, pixAnchors(f), f.look, f.notes, N, N, [0.4625 * N, 0.0375 * N, 0.725 * N, 0.1245 * N]);
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) face[j * N + i] = front(mask.at(i, j)) || matLit(f, -1 + ((i + 0.5) * 2) / N, -1 + ((j + 0.5) * 2) / N);
     const c = Math.min(W, H) / N, X = (W - c * N) / 2, Y = (H - c * N) / 2;
     const each = (fn) => {
       for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
@@ -354,7 +387,9 @@ function matrice() {
     ctx.fill();
     ctx.fillStyle = G;
     each((k, x, y, u, v) => {
-      F[k] = ease(F[k], matLit(f, u, v), 30, dt);
+      const i = Math.floor(((u + 1) / 2) * N), j = Math.floor(((v + 1) / 2) * N), m = mask.at(i, j);
+      const cut = m === SCENE && behind(face, N, N, i, j);
+      F[k] = ease(F[k], m < 0 ? 0 : Math.max(cut ? 0 : m, face[k]), 30, dt);
       if (F[k] < 0.02) return;
       ctx.globalAlpha = F[k];
       ctx.beginPath();
@@ -368,12 +403,14 @@ function matrice() {
 // Oscilloscope : une trace qui vibre, avec rémanence.
 function oscillo(ctx, f) {
   const { gx, gy, open, hap, sc, bo } = f.eyes, m = f.mouth, T = f.T, cx = 132, cy = 99;
-  ctx.strokeStyle = 'rgba(70,255,134,.06)';
+  ctx.strokeStyle = G;
+  ctx.globalAlpha = 0.06;
   ctx.lineWidth = 1;
   ctx.beginPath();
   for (let i = 1; i < 10; i++) { ctx.moveTo((i * 264) / 10, 0); ctx.lineTo((i * 264) / 10, 198) }
   for (let j = 1; j < 8; j++) { ctx.moveTo(0, (j * 198) / 8); ctx.lineTo(264, (j * 198) / 8) }
   ctx.stroke();
+  ctx.globalAlpha = 1;
   ctx.strokeStyle = G;
   ctx.lineWidth = 2;
   for (const s of [-1, 1]) {
@@ -411,11 +448,11 @@ export const THEMES = [
   { id: 'trait-doux', name: 'Doux', family: 'Trait', screen: 'round', note: 'yeux arrondis pleins', make: () => vector(220, 220, traitSoft(false, false)) },
   { id: 'trait-contour', name: 'Contour', family: 'Trait', screen: 'round', note: 'tout en contours', make: () => vector(220, 220, traitSoft(true, false)) },
   { id: 'trait-neon', name: 'Néon', family: 'Trait', screen: 'round', note: 'contours lumineux', make: () => vector(220, 220, traitSoft(true, true)) },
-  { id: 'chat-pixel', name: 'Chat pixel', family: 'Chats', screen: 'rect', note: 'OLED, oreilles qui frémissent', make: () => oled(128, 1, [[0, 0]], catLit) },
-  { id: 'chat-perles', name: 'Chat perles', family: 'Chats', screen: 'rect', note: 'LED couleur, fond visible', make: () => dots(() => ({ cols: 52, shape: 'perle', bg: true }), catLit) },
-  { id: 'chaton', name: 'Chaton', family: 'Chats', screen: 'round', note: 'grands yeux, joues roses', make: () => vector(220, 220, kitten) },
+  { id: 'chat-pixel', name: 'Chat pixel', family: 'Chats', screen: 'rect', note: 'OLED, oreilles qui frémissent', make: () => oled(128, 1, [[0, 0]], catLit, catAnchors) },
+  { id: 'chat-perles', name: 'Chat perles', family: 'Chats', screen: 'rect', note: 'LED couleur, fond visible', make: () => dots(() => ({ cols: 52, shape: 'perle', bg: true }), catLit, catAnchors) },
+  { id: 'chaton', name: 'Chaton', family: 'Chats', screen: 'round', note: 'grands yeux, joues roses', make: () => vector(220, 220, kitten, 0, [120, -10, 62], catAnchors) },
   { id: 'matrice', name: 'Matrice', family: 'Autres', screen: 'round', note: 'LED rondes 19×19', make: matrice },
-  { id: 'oscillo', name: 'Oscillo', family: 'Autres', screen: 'wide', note: 'trace d’oscilloscope', make: () => vector(264, 198, oscillo, 23) },
+  { id: 'oscillo', name: 'Oscillo', family: 'Autres', screen: 'wide', note: 'trace d’oscilloscope', make: () => vector(264, 198, oscillo, 23, [130, 2, 19.6]) },
 ];
 
 export const themeById = (id) => THEMES.find((t) => t.id === id);
