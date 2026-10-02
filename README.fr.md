@@ -64,7 +64,7 @@ visage passe sur un **ESP32** avec un OLED 128×64 : le cerveau ne parle au visa
 - **Prononce bien l'anglais.** En français, les mots anglais entourés de `[en]…[/en]` sont dits avec des phonèmes anglais, dans la même voix : les titres de morceaux ne sortent plus à la française.
 - **Voix de chat, en option.** Un filtre plus aigu, qui ne s'applique que quand un visage de chat est à l'écran.
 - **Ta bibliothèque musicale.** Branche Navidrome ou n'importe quel serveur Subsonic, puis dis « Eli, mets du Daft Punk » ou choisis un morceau dans la **Bibliothèque** (♪ dans le dock, <kbd>M</kbd>) : recherche, pochettes, lecture aléatoire. Eli s'habille selon le genre (lunettes et palmiers pour le tropical, lasers pour l'électro…).
-- **Karaoké.** Pendant qu'il chante, un lecteur sous le visage montre la ligne en cours (paroles synchronisées via [LRCLIB](https://lrclib.net)), la suivante, et permet de mettre en pause, de te déplacer dans le morceau, et de passer au précédent ou au suivant (au-delà du dernier, un morceau au hasard). Active la **lecture continue** (⇄) et il enchaîne au hasard quand un
+- **Karaoké.** Pendant qu'il chante, la ligne en cours et la suivante s'affichent sous le visage (paroles synchronisées via [LRCLIB](https://lrclib.net)) ; le visage monte juste assez pour elles, sans rapetisser. Le lecteur (dans la barre du bas en fenêtre large, pour ne jamais couvrir les paroles) permet de mettre en pause, de te déplacer dans le morceau, et de passer au précédent ou au suivant (au-delà du dernier, un morceau au hasard). La barre se cache après 2 s sans souris. Active la **lecture continue** (⇄) et il enchaîne au hasard quand un
   morceau se termine. Il annonce les morceaux que tu choisis (« Voici Maps, de Maroon 5 »), ce qui couvre aussi les quelques secondes que sa voix isolée met à démarrer.
 - **Jamais coincé sur un modèle mort.** Si Groq retire le modèle avec lequel Eli réfléchit, il passe à un modèle encore servi ; Réglages → Cerveau liste ceux que propose ton serveur pour en choisir un autre.
 - **Choisis sa couleur.** Vert, blanc, bleu ou jaune, comme les écrans OLED qu'on trouve dans le commerce, ou n'importe quelle couleur : pratique pour choisir un écran avant de l'acheter.
@@ -517,7 +517,7 @@ Il est développé et testé sur macOS. Le serveur est du Python standard et Pip
 
 - Le premier appui sur <kbd>Espace</kbd> ouvre le micro et peut manger la première syllabe ; le micro reste ensuite ouvert 30 s.
 - Fenêtre cachée ou réduite : l'animation se fige (le son continue).
-- Certains morceaux n'ont pas de paroles synchronisées sur LRCLIB : le lecteur affiche alors juste le titre.
+- Certains morceaux n'ont pas de paroles synchronisées sur LRCLIB : Eli le dit une fois, le visage ne bouge pas et le lecteur affiche juste le titre.
 - L'isolation de la voix tourne à peu près à la vitesse de lecture sur un M1, plus lentement si le Mac est occupé. En
   attendant qu'elle rattrape, sa bouche suit les paroles synchronisées et le volume du morceau (donc pas de paroles +
   pas encore de voix isolée = bouche fermée).

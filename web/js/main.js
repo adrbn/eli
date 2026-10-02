@@ -1066,31 +1066,29 @@ addEventListener('keydown', (e) => {
   }
   if (onboarding.open) return; // l'accueil d'abord : pas de parole ni de raccourci
   if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
   if (e.code === 'Space') {
-    e.preventDefault();
     if (!e.repeat) pttStart();
-  } else if (e.key === 'Escape') {
+  } else if (key === 'Escape') {
     closePanels();
     stopAll('music');
-  } else if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-    cycleTheme(e.key === 'ArrowRight' ? 1 : -1);
-  } else if (e.key === 'v' || e.key === 'V') {
+  } else if (key === 'ArrowRight' || key === 'ArrowLeft') {
+    cycleTheme(key === 'ArrowRight' ? 1 : -1);
+  } else if (key === 'v') {
     togglePanel(el.themes);
-  } else if (e.key === 'm' || e.key === 'M') {
-    e.preventDefault(); // sinon le « m » atterrit dans la recherche, qui prend le focus
-    toggleLibrary();
-  } else if (e.key === 'Enter') {
-    e.preventDefault();
+  } else if (key === 'm') {
+    toggleLibrary(); // preventDefault plus bas : sinon le « m » atterrit dans la recherche, qui prend le focus
+  } else if (key === 'Enter') {
     el.input.focus();
-  } else if (e.key === 'c' || e.key === 'C') {
+  } else if (key === 'c') {
     showLyrics(!lyricsOn);
-  } else if (e.key === 'p' || e.key === 'P') {
+  } else if (key === 'p') {
     toggleMusic();
-  } else if (e.key === 'ArrowUp') {
-    e.preventDefault();
+  } else if (key === 'ArrowUp') {
     el.input.focus();
     recall(-1);
-  }
+  } else return;
+  e.preventDefault(); // un raccourci d'Eli : sinon WebKit rend la touche à macOS, qui bipe dans l'app
 });
 addEventListener('keyup', (e) => {
   if (e.code !== 'Space' || onboarding.open) return;

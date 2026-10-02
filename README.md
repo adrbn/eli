@@ -64,7 +64,7 @@ browser for a board is one URL.
 - **Says English words properly.** In French, Eli's voice is French; English words wrapped in `[en]…[/en]` are spoken with English phonemes in the same voice, so song titles don't come out mangled.
 - **Optional cat voice.** A higher-pitched filter that only applies while a cat face is on screen.
 - **Your music library.** Plug in Navidrome or any Subsonic server, then say "Eli, play some Daft Punk" or pick a song in the **Library** (♪ in the dock, <kbd>M</kbd>): search, covers, shuffle. Eli dresses for the genre (shades and palm trees for tropical, lasers for electro…).
-- **Karaoke.** While it sings, a player under the face shows the line being sung (synced lyrics from [LRCLIB](https://lrclib.net)), the next one, and lets you pause, seek, and go to the previous or next song (past the last one, a random pick). Turn on **continuous play** (⇄) and he keeps going with random songs
+- **Karaoke.** While it sings, the line being sung and the next one show under the face (synced lyrics from [LRCLIB](https://lrclib.net)); the face moves up just enough for them, never shrinks. The player (in the bottom bar on a wide window, so it never covers the lyrics) lets you pause, seek, and go to the previous or next song (past the last one, a random pick). The bar hides after 2 s without the mouse. Turn on **continuous play** (⇄) and he keeps going with random songs
   when one ends. He announces the songs you pick ("Here's Maps, by Maroon 5"), which also covers the seconds his isolated voice needs to start.
 - **Never stuck on a dead model.** If Groq retires the model Eli thinks with, he switches to one it still serves; Settings → Brain lists what your server offers so you can pick another.
 - **Pick its color.** Green, white, blue or yellow, like the OLED screens you can buy, or any color: handy to choose a screen before ordering one.
@@ -502,7 +502,7 @@ It's built and tested on macOS. The server is stdlib Python and Piper is cross-p
 
 - The first <kbd>Space</kbd> press opens the mic and can eat the first syllable; the mic then stays open 30 s.
 - A hidden or minimized window freezes the animation (the sound keeps going).
-- Some songs have no synced lyrics on LRCLIB: the player then just shows the title.
+- Some songs have no synced lyrics on LRCLIB: Eli says so once, the face stays where it is and the player just shows the title.
 - Vocal isolation runs at about playback speed on an M1, slower when the Mac is busy. Until it catches up, his mouth
   follows the synced lyrics and the song's loudness (so no lyrics + no isolated voice yet = a closed mouth).
 - Mic capture uses `ScriptProcessor`: deprecated but everywhere, to be swapped for an `AudioWorklet`.
