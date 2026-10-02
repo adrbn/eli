@@ -20,6 +20,8 @@ extension AppDelegate {
     @objc func reload() { start() }
     @objc func openInBrowser() { NSWorkspace.shared.open(origin) }
     @objc func showLog() { NSWorkspace.shared.open(logURL) }
+    @objc func showData() { NSWorkspace.shared.open(dataURL) }
+    @objc func checkForUpdates() { updater?.checkForUpdates(nil) }
     @objc func openGitHub() { NSWorkspace.shared.open(URL(string: "https://github.com/adrbn/eli")!) }
 
     @objc func reportIssue() {
@@ -59,6 +61,7 @@ extension AppDelegate {
             item.title = !song.loaded ? L("Lecture/Pause", "Play/Pause") : (song.singing ? "Pause" : L("Reprendre", "Resume")) + title
             return song.loaded
         case #selector(stopMusic): return song?.loaded ?? true
+        case #selector(checkForUpdates): return updater?.updater.canCheckForUpdates ?? false
         default: break
         }
         return true
@@ -113,6 +116,7 @@ extension AppDelegate {
         for sub in [
             menu("Eli", [
                 std(L("À propos d’Eli", "About Eli"), #selector(NSApplication.orderFrontStandardAboutPanel(_:))),
+                item(L("Rechercher les mises à jour…", "Check for Updates…"), #selector(checkForUpdates)),
                 .separator(),
                 settingsItem(),
                 .separator(),
@@ -155,8 +159,8 @@ extension AppDelegate {
                 item(L("Journal du serveur", "Server Log"), #selector(showLog), "l", [.command, .shift]),
                 item(L("Ouvrir dans le navigateur", "Open in Browser"), #selector(openInBrowser), "o", [.command, .shift]),
                 item(L("Recharger", "Reload"), #selector(reload), "r"),
-                item(L("Choisir le dossier Eli…", "Choose Eli Folder…"), #selector(chooseFolder)),
-            ]),
+            ] + (bundled == nil ? [item(L("Choisir le dossier Eli…", "Choose Eli Folder…"), #selector(chooseFolder))]
+                                : [item(L("Dossier des données", "Data Folder"), #selector(showData))])),
             windowMenu,
             helpMenu,
         ] {

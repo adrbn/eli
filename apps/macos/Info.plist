@@ -27,7 +27,17 @@
 	<key>NSHighResolutionCapable</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Eli listens to you when you talk to it.</string>
+	<string>Eli listens to you when you talk to him.</string>
+	<!-- Sparkle (release builds only, see main.swift): the latest GitHub release's appcast, signed with the private
+	     half of this key, which lives in the release maker's Keychain (generate_keys --account eli). -->
+	<key>SUFeedURL</key>
+	<string>https://github.com/adrbn/eli/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>4yvrhyC8H7QDMc6Y/tqK+myKhERH35439YX9/1bcgkk=</string>
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+	<key>SUScheduledCheckInterval</key>
+	<integer>86400</integer>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

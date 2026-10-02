@@ -1,10 +1,17 @@
 // Eli for macOS: one web face that lives in a window, a floating widget or the notch, one place at a time.
 // Starts the local server if nothing answers, stops it on quit (only the one it started). Built by build.sh, no Xcode project.
 import AppKit
+import Sparkle
 import WebKit
 
 let defaults = UserDefaults.standard
 let logURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/Eli/server.log")
+/// What the bundled server writes (.env, memory, voices, cache): the app itself stays read-only and signed.
+let dataURL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Eli")
+/// The release carries its own server (Python, ffmpeg, server/, web/) in Resources; a dev build runs the repo's.
+let bundled: URL? = Bundle.main.resourceURL.flatMap {
+    FileManager.default.fileExists(atPath: $0.appendingPathComponent("server/app.py").path) ? $0 : nil
+}
 let french = Locale.preferredLanguages.first?.hasPrefix("fr") == true
 func L(_ fr: String, _ en: String) -> String { french ? fr : en }
 
@@ -20,6 +27,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     var placement = Placement.window
     var song: (loaded: Bool, singing: Bool, title: String?)?  // reported by the page, nil until it does
     var server: Process?  // the server we started, if any
+    /// Sparkle, release builds only: a dev build (repo server) would be offered the published version as an "update".
+    lazy var updater: SPUStandardUpdaterController? = bundled.map { _ in
+        SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+    }
 
     var origin: URL { URL(string: "http://127.0.0.1:\(defaults.integer(forKey: "port"))/")! }
     var page: URL { URL(string: "?app=mac", relativeTo: origin)!.absoluteURL }
@@ -36,6 +47,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         NSApp.mainMenu = mainMenu()
         place(defaults.string(forKey: "placement").flatMap(Placement.init) ?? .window)
         start()
+        _ = updater  // checks once a day (Info.plist), asks before installing
     }
 
     func applicationWillTerminate(_ notification: Notification) { stopServer() }
@@ -103,11 +115,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     func start() {
         Task {
             if await alive() { return load() }
-            guard let repo = repoURL() else {
-                return show(L("Aucun dossier Eli choisi.<br>Développeur › Choisir le dossier Eli…",
-                              "No Eli folder chosen.<br>Developer › Choose Eli Folder…"))
-            }
-            do { try launchServer(in: repo) } catch {
+            do {
+                if let res = bundled {
+                    try FileManager.default.createDirectory(at: dataURL, withIntermediateDirectories: true)
+                    let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+                    try launchServer(res.appendingPathComponent("python/bin/python3"), [res.appendingPathComponent("server/app.py").path],
+                                     in: dataURL, env: ["ELI_DATA": dataURL.path, "ELI_VERSION": version,
+                                                        "PYTHONDONTWRITEBYTECODE": "1", "PYTHONNOUSERSITE": "1",
+                                                        "PATH": res.appendingPathComponent("bin").path + ":/usr/bin:/bin"])
+                } else {
+                    guard let repo = repoURL() else {
+                        return show(L("Aucun dossier Eli choisi.<br>Développeur › Choisir le dossier Eli…",
+                                      "No Eli folder chosen.<br>Developer › Choose Eli Folder…"))
+                    }
+                    let home = NSHomeDirectory()  // apps launched from Finder get a bare PATH: find uv and ffmpeg
+                    let path = "\(home)/.local/bin:\(home)/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:"
+                        + (ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin")
+                    try launchServer(URL(fileURLWithPath: "/bin/bash"), [repo.appendingPathComponent("run.sh").path, "--no-open"],
+                                     in: repo, env: ["PATH": path])
+                }
+            } catch {
                 return show(L("Impossible de lancer le serveur : ", "Could not start the server: ") + error.localizedDescription)
             }
             show(L("Eli se réveille…", "Waking Eli up…"))
@@ -131,19 +158,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         return (response as? HTTPURLResponse)?.statusCode == 200
     }
 
-    func launchServer(in repo: URL) throws {
+    func launchServer(_ executable: URL, _ arguments: [String], in dir: URL, env extra: [String: String]) throws {
         try FileManager.default.createDirectory(at: logURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         FileManager.default.createFile(atPath: logURL.path, contents: nil)
         let log = try FileHandle(forWritingTo: logURL)
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [repo.appendingPathComponent("run.sh").path, "--no-open"]
-        process.currentDirectoryURL = repo
-        var env = ProcessInfo.processInfo.environment
-        let home = NSHomeDirectory()  // apps launched from Finder get a bare PATH: find uv and ffmpeg
-        env["PATH"] = "\(home)/.local/bin:\(home)/.cargo/bin:/opt/homebrew/bin:/usr/local/bin:" + (env["PATH"] ?? "/usr/bin:/bin")
+        process.executableURL = executable
+        process.arguments = arguments
+        process.currentDirectoryURL = dir
+        var env = ProcessInfo.processInfo.environment.merging(extra) { $1 }
         env["PORT"] = String(defaults.integer(forKey: "port"))
         env["PYTHONUNBUFFERED"] = "1"
+        // launched from Finder there is no LANG: the server would start in English (voice, first download) until the page says
+        env["LANG"] = env["LANG"] ?? L("fr_FR.UTF-8", "en_US.UTF-8")
         process.environment = env
         process.standardOutput = log
         process.standardError = log
@@ -153,7 +180,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
     func stopServer() {
         guard let process = server, process.isRunning else { return }
-        process.terminate()  // SIGTERM to `uv run`, which forwards it to python
+        process.terminate()  // SIGTERM to python (or to `uv run`, which forwards it)
         for _ in 0..<30 where process.isRunning { usleep(100_000) }
         if process.isRunning { kill(process.processIdentifier, SIGKILL) }
         server = nil
