@@ -84,6 +84,7 @@ export class Player {
   enqueue(meta) {
     const item = { meta, kind: meta.kind, state: 'loading', buffer: null, track: null, vocal: null };
     this.pending.push(item);
+    if (meta.growing) (this.growing ||= new Map()).set(meta.id, item);
     this.load(item)
       .then(() => { item.state = 'ready' }, (err) => { item.state = 'failed'; item.error = err })
       .finally(() => this.pump());
@@ -145,6 +146,7 @@ export class Player {
   // keep = 'music' : coupe la parole mais laisse le morceau en cours.
   stop(keep = null) {
     const kept = (i) => keep !== null && i.kind === keep;
+    for (const item of [...this.playing, ...this.pending]) if (!kept(item)) item.stopped = true;
     for (const item of this.playing) if (!kept(item)) halt(item);
     this.playing = this.playing.filter(kept);
     this.pending = this.pending.filter(kept);
@@ -185,6 +187,46 @@ export class Player {
     this.cursor = Math.max(0, ...this.playing.map((i) => i.end).filter(Number.isFinite));
   }
 
+  // Un morceau qui arrive encore (envoyé en morceaux) : on recharge ce qui est là, et la suite part pile là où le début
+  // s'arrêtait. Raccord 0,5 s avant la fin de l'ancien buffer : le décodeur y est le même, la fin d'un fichier coupé non.
+  async grow(id, size, done) {
+    const item = this.growing?.get(id);
+    if (!item || item.stopped) return;
+    if (done) this.growing.delete(id);
+    const seq = (item.growSeq || 0) + 1;
+    item.growSeq = seq;
+    const buffer = await this.decode(`${item.meta.url}?n=${size}`);
+    if (seq !== item.growSeq || item.stopped || buffer.duration <= (item.buffer?.duration ?? 0)) return;
+    const old = item.buffer;
+    item.buffer = buffer;
+    if (item.src && !Number.isFinite(item.paused ?? NaN) && old) this.splice(item, old.duration);
+    const track = await analyze(item.kind, await to16k(buffer));
+    if (seq === item.growSeq) item.track = track;
+  }
+
+  splice(item, had) {
+    const ctx = this.ctx, src = ctx.createBufferSource();
+    let offset = had - 0.5, when = item.t0 + offset;
+    if (when < ctx.currentTime + 0.05) { // à sec en attendant la suite : il reprend où il s'était tu, maintenant
+      offset = Math.max(0, Math.min(had, ctx.currentTime - item.t0));
+      when = ctx.currentTime + 0.05;
+      item.t0 = when - offset;
+      if (!this.playing.includes(item)) this.playing.push(item);
+    }
+    src.buffer = item.buffer;
+    src.connect(this.gain);
+    src.start(when, offset);
+    try {
+      item.src.stop(when);
+    } catch {
+      // déjà terminé
+    }
+    item.older = [...(item.older || []), item.src];
+    item.src = src;
+    item.end = item.t0 + item.buffer.duration;
+    this.recount();
+  }
+
   // La voix isolée d'un morceau arrive après coup, bloc par bloc : à chaque bloc, on recharge la voix partielle
   // (silence là où elle n'est pas encore calculée) et la bouche chante sur ce qui est déjà là.
   async attachStem(id, url) {
@@ -205,11 +247,14 @@ export class Player {
 }
 
 function halt(item) {
-  try {
-    item.src.stop();
-  } catch {
-    // déjà terminé
+  for (const src of [item.src, ...(item.older || [])]) {
+    try {
+      src?.stop();
+    } catch {
+      // déjà terminé
+    }
   }
+  item.older = [];
 }
 
 // Micro en « appuyer pour parler ». Le flux reste ouvert 30 s après usage pour ne pas rater le début du suivant.

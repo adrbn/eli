@@ -166,10 +166,15 @@ class Navidrome:
         found = self._call(self.auth, "search3", query=query.strip()[:100], songCount=count, artistCount=0, albumCount=0)
         return found.get("searchResult3", {}).get("song", [])
 
-    def fetch(self, song_id: str) -> bytes:
+    def stream(self, song_id: str, chunk: int = 64 * 1024):
+        """The song as MP3, chunk by chunk as it arrives (60 MB at most): the face can start before the end."""
         try:
             with urllib.request.urlopen(self._url(self.auth, "stream", id=song_id, format="mp3", maxBitRate=BITRATE), timeout=90) as r:
-                return r.read(60 * 1024 * 1024)
+                for _ in range(60 * 1024 * 1024 // chunk):
+                    data = r.read(chunk)
+                    if not data:
+                        return
+                    yield data
         except OSError as exc:
             raise MusicError(f"unreadable song ({exc})") from exc
 

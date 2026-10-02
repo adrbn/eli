@@ -2,6 +2,8 @@
 
 Role 1 · the screen. Same protocol as the ESP32 later; the web page is just one display of it:
   POST /clip?kind=speech|music&turn=N&name=f.mp3   body = audio file, header X-Text (spoken text, URL-encoded)
+                (music, &more=1: only its start, so the face plays it at once; X-Duration = the whole song, seconds)
+  POST /clip/more?id=…&done=0|1  body = the next bytes of that song (event "grow"; done: its voice gets isolated)
                                                     and X-Phonemes ([[phoneme, ms], …] as URL-encoded JSON, optional)
   POST /stop    {} or {"turn": N}                   cuts speech and empties the queue; then ignores clips of turns < N
                 ({"keep": "music"}: the current song goes on)
@@ -334,8 +336,9 @@ class App:
 
         threading.Thread(target=run, daemon=True).start()
 
-    def dress(self, clip_id: str, path: Path, name: str, known: str) -> None:
-        """The song's genre (event "genre": the page dresses Eli) and synced lyrics (event "lyrics": the karaoke line)."""
+    def dress(self, clip_id: str, path: Path, name: str, known: str, duration: float | None = None) -> None:
+        """The song's genre (event "genre": the page dresses Eli) and synced lyrics (event "lyrics": the karaoke line).
+        duration: the whole song's, when only its start has arrived (the file's own would be too short)."""
         look = genre.detect(path, name, known, FFPROBE, self.brain.quick if self.brain.has_llm() else None)
         log.info("genre of %s: %s", name, look or "unknown")
         if look:
@@ -343,6 +346,8 @@ class App:
         if self.cfg.get("LYRICS", "on") == "off":
             return
         info = genre.tags(path, FFPROBE)
+        if duration:
+            info["duration"] = duration
         who = lyrics.guess(name, info)
         lines = lyrics.fetch(*who, info.get("duration")) if who else None
         log.info("lyrics of %s: %s", name, f"{len(lines)} lines" if lines else "none")
@@ -543,6 +548,7 @@ class Handler(BaseHTTPRequestHandler):
         query = dict(urllib.parse.parse_qsl(url.query))
         route = {
             "/clip": self._post_clip,
+            "/clip/more": self._post_clip_more,
             "/stop": self._post_stop,
             "/state": self._post_state,
             "/gaze": self._post_gaze,
@@ -601,9 +607,15 @@ class Handler(BaseHTTPRequestHandler):
             meta["mood"] = mood
         if kind == "music":
             known = urllib.parse.unquote(self.headers.get("X-Genre") or "")
-            threading.Thread(target=self.app.dress, args=(meta["id"], path, name, known), daemon=True).start()
+            try:
+                duration = min(max(float(self.headers.get("X-Duration") or 0), 0), 24 * 3600) or None
+            except ValueError:
+                duration = None
+            threading.Thread(target=self.app.dress, args=(meta["id"], path, name, known, duration), daemon=True).start()
             meta["stem"] = "off"
-            if self.app.stems:
+            if query.get("more") == "1":  # the rest follows (/clip/more): its voice is isolated once it's all here
+                meta.update(growing=True, duration=duration, stem="pending" if self.app.stems else "off")
+            elif self.app.stems:
                 meta["stem"] = "pending"
                 sha = hashlib.sha256(data).hexdigest()
                 self.app.hub.publish("clip", meta)
@@ -612,6 +624,26 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(200, {"ok": True, **meta})
         self.app.hub.publish("clip", meta)
         self._json(200, {"ok": True, **meta})
+
+    def _post_clip_more(self, query: dict) -> None:
+        """The next bytes of a song sent with more=1; the pages reload it, and play on where the start ended."""
+        cid = query.get("id", "")
+        found = self.app.clips.get(cid) if CLIP_ID.match(cid) else None
+        if not found or found[0]["kind"] != "music":
+            return self._error(404, "unknown clip")
+        data = self._audio_body()
+        if data is None:
+            return
+        path, done = found[1], query.get("done") == "1"
+        if path.stat().st_size + len(data) > MAX_AUDIO:
+            return self._error(413, "song too big")
+        with path.open("ab") as f:
+            f.write(data)
+        size = path.stat().st_size
+        self.app.hub.publish("grow", {"id": cid, "size": size, "done": done})
+        if done and self.app.stems:
+            self.app.stems.request(path, hashlib.sha256(path.read_bytes()).hexdigest(), cid)
+        self._json(200, {"ok": True, "size": size})
 
     def _post_stop(self, _query: dict) -> None:
         turn, keep = None, None

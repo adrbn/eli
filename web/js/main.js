@@ -81,7 +81,7 @@ const el = {
   mic: $('#btn-mic'), chat: $('#chat'), input: $('#chat-input'), status: $('#status'), info: $('#info'),
   themes: $('#pane-faces'), settings: $('#panel-settings'), music: $('#pane-music'), library: $('#panel-library'), groups: $('#theme-groups'), custom: $('#custom'),
   drop: $('#drop'), wake: $('#wake'), file: $('#file'), voice: $('#s-voice'), voiceHint: $('#s-voice-hint'),
-  now: $('#now'), nowLine: $('#now-line'), nowNext: $('#now-next'), nowTitle: $('#now-title'), playingTag: $('#playing-tag'), nowPlay: $('#now-play'),
+  now: $('#now'), nowLine: $('#now-line'), nowNext: $('#now-next'), nowTitle: $('#now-title'), playingTag: $('#playing-tag'), netWarn: $('#net-warn'), netTip: $('#net-tip'), nowPlay: $('#now-play'),
   nowBar: $('.now-bar'), nowIcon: $('#now-icon'), nowSeek: $('#now-seek'), nowTime: $('#now-time'), nowDur: $('#now-dur'), devlog: $('#devlog'),
 };
 
@@ -221,6 +221,11 @@ function connect() {
   on('voice', (c) => {
     renderVoices(c);
     if (!c.busy) fetch('/api/status').then((r) => r.json()).then((s) => { info = s; renderInfo() }).catch(report);
+  });
+  on('grow', (d) => player.grow(d.id, d.size, d.done).catch(report)); // la suite d'un morceau qui arrive encore
+  on('net', (d) => { // le débit du dernier morceau téléchargé
+    el.netWarn.hidden = !d.slow;
+    el.netTip.textContent = t('La musique arrive lentement de ton serveur ({rate} Ko/s). Elle démarre quand même, mais un saut en avant peut attendre la suite. Le signal part quand ça va mieux.', { rate: Math.round(d.rate / 1024) });
   });
   on('stem', (d) => {
     if (d.error) return toast(t('Voix du morceau non isolée : {error}', { error: d.error }));
@@ -694,7 +699,8 @@ function renderNow() {
     renderTitle(m, ly);
     if (ly && !ly.lines.length && lyricsOn) toast(t('Pas de paroles trouvées pour ce morceau.'));
   }
-  const pos = player.position(m), dur = m.buffer.duration;
+  const pos = player.position(m), dur = Math.max(m.meta.duration || 0, m.buffer.duration); // arrivé en partie : la durée annoncée
+  el.nowSeek.style.setProperty('--b', `${(m.buffer.duration / dur) * 100}%`);
   lastSong = { pos, dur };
   if (ly?.lines?.length) renderLyrics(ly.lines, pos + settings.lead / 1000);
   // une ligne à lire prend sa place sous le visage ; intro, pont instrumental ou fin : il se recentre
@@ -746,7 +752,7 @@ el.nowSeek.addEventListener('input', () => { seeking = true });
 el.nowSeek.addEventListener('change', () => {
   seeking = false;
   const m = player.music();
-  if (m) player.seek(m, Number(el.nowSeek.value) * m.buffer.duration);
+  if (m) player.seek(m, Number(el.nowSeek.value) * Math.max(m.meta.duration || 0, m.buffer.duration));
 });
 
 // Maintenir = parler tant qu'on tient ; un simple clic = micro ouvert jusqu'au clic suivant.

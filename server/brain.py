@@ -11,6 +11,7 @@ import logging
 import random
 import re
 import threading
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -23,7 +24,7 @@ import meow
 import piper_text
 import tags
 from keys import BadKey, check_llm as list_models
-from navidrome import MusicError
+from navidrome import BITRATE, MusicError
 from memory import Memory
 
 log = logging.getLogger("eli.brain")
@@ -73,6 +74,8 @@ INTRO_MARKER = {"fr": "(C'est notre première rencontre.)", "en": "(This is our 
 INTRO_QUESTIONS = 5
 
 HISTORY = 50  # songs remembered for "previous"
+FIRST, MORE = 160 * 1024, 256 * 1024  # a song's start (~10 s at 128 kb/s), then the rest by ~16 s pieces
+SLOW = 4 * BITRATE * 1000 // 8  # bytes/s: under 4× what playback eats, a skip forward waits and the page warns
 
 # Everything Eli says without the LLM.
 LINES = {
@@ -250,9 +253,12 @@ class FaceClient:
             return json.loads(r.read() or b"{}")
 
     def clip(self, wav: bytes, kind: str, text: str, turn: int, phonemes: list | None = None, mood: str | None = None,
-             ctype: str = "audio/wav", name: str | None = None, genre: str | None = None) -> dict:
-        query = urllib.parse.urlencode({"kind": kind, "turn": turn, **({"name": name} if name else {})})
+             ctype: str = "audio/wav", name: str | None = None, genre: str | None = None, more: bool = False,
+             duration: float | None = None) -> dict:
+        query = urllib.parse.urlencode({"kind": kind, "turn": turn, **({"name": name} if name else {}), **({"more": 1} if more else {})})
         headers = {"X-Text": urllib.parse.quote(text[:500])}
+        if duration:
+            headers["X-Duration"] = str(duration)
         if mood:
             headers["X-Mood"] = urllib.parse.quote(mood)
         if genre:
@@ -261,6 +267,10 @@ class FaceClient:
         if packed and len(packed) < 7000:  # an HTTP header has limits; beyond, the mouth follows the sound only
             headers["X-Phonemes"] = packed
         return self._post(f"/clip?{query}", wav, ctype, headers)
+
+    def more(self, clip_id: str, data: bytes, done: bool) -> dict:
+        """The next bytes of a song sent with more=True."""
+        return self._post(f"/clip/more?id={clip_id}&done={int(done)}", data, "audio/mpeg")
 
     def state(self, mode: str) -> None:
         try:
@@ -565,15 +575,36 @@ class Brain:
                 self.played = [*self.played[: self.place + 1], song][-HISTORY:]
                 self.place = len(self.played) - 1
         try:
-            data = self.music.fetch(song["id"])
+            self._stream(song, ticket)
         finally:
             with self.lock:
                 if self.fetching == (song["id"], ticket):
                     self.fetching = None
+
+    def _stream(self, song: dict, ticket: int) -> None:
+        """Sends the song's start as soon as it's here, then the rest as it comes, and tells the page how fast it came."""
+        title = f"{song['artist']} – {song['title']}".strip(" –")
+        clip = dict(kind="music", text=title, turn=0, ctype="audio/mpeg", name=f"{title[:100]}.mp3", genre=song.get("genre"))
+        start, buf, sent, cid = time.monotonic(), b"", 0, None
+        for chunk in self.music.stream(song["id"]):
+            if ticket != self.song:
+                return  # another song took its place: this one stops downloading
+            buf += chunk
+            if cid is None and len(buf) >= FIRST:
+                cid = self.face.clip(buf, **clip, more=True, duration=song.get("duration")).get("id")
+            elif cid and len(buf) >= MORE:
+                self.face.more(cid, buf, False)
+            else:
+                continue
+            sent, buf = sent + len(buf), b""
         if ticket != self.song:
             return
-        title = f"{song['artist']} – {song['title']}".strip(" –")
-        self.face.clip(data, "music", title, 0, ctype="audio/mpeg", name=f"{title[:100]}.mp3", genre=song.get("genre"))
+        if cid:
+            self.face.more(cid, buf, True)
+        else:  # short enough to arrive in one go
+            self.face.clip(buf, **clip)
+        rate = (sent + len(buf)) / max(time.monotonic() - start, 0.001)
+        self.publish("net", {"rate": round(rate), "slow": rate < SLOW})
 
     def step(self, delta: int) -> tuple[dict | None, bool]:
         """Previous (-1) / next (+1): back and forth through the songs sung, then a random one past the end.

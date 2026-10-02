@@ -248,6 +248,16 @@ class ServerTest(unittest.TestCase):
                 fake.shutdown()
 
     @unittest.skipUnless(FFMPEG, "no ffmpeg")
+    def test_a_song_grows(self):
+        """more=1: the start plays now; /clip/more appends the rest, and the pages reload it."""
+        code, meta = self.post("/clip?kind=music&more=1&name=a.mp3", b"ab", "audio/mpeg", {"X-Duration": "180"})
+        self.assertEqual((code, meta["growing"], meta["duration"]), (200, True, 180.0))
+        self.assertEqual(self.post(f"/clip/more?id={meta['id']}&done=1", b"cd", "audio/mpeg")[1]["size"], 4)
+        self.assertTrue(self.wait_for("grow", lambda d: d["id"] == meta["id"])["done"])
+        with urllib.request.urlopen(self.base + meta["url"]) as r:
+            self.assertEqual(r.read(), b"abcd")
+        self.assertEqual(self.post("/clip/more?id=000000000000", b"x", "audio/mpeg")[0], 404)
+
     def test_undecodable_clip_is_converted_to_aac(self):
         with tempfile.TemporaryDirectory() as tmp:
             src, alac = Path(tmp) / "a.wav", Path(tmp) / "a.m4a"
@@ -388,14 +398,14 @@ class ServerTest(unittest.TestCase):
         brain, started, gate, sent = self.server.app.brain, threading.Event(), threading.Event(), []
 
         class Music:  # a slow download
-            def fetch(self, _id):
+            def stream(self, _id):
                 started.set()
                 gate.wait(5)
-                return b"mp3"
+                yield b"mp3"
 
         class Face:
-            def clip(self, *args, **_kw):
-                sent.append(args)
+            def clip(self, data, **kw):
+                sent.append((data, kw["kind"], kw["text"], kw["turn"]))
 
         saved = brain.music, brain.face
         brain.music, brain.face = Music(), Face()
@@ -420,15 +430,15 @@ class ServerTest(unittest.TestCase):
         song = lambda i: {"id": f"s{i}", "title": f"T{i}", "artist": "A"}  # noqa: E731
 
         class Music:
-            def fetch(self, _id):
-                return b"mp3"
+            def stream(self, _id):
+                yield b"mp3"
 
             def songs(self, _q):
                 return [song(2), song(9)]
 
         class Face:
-            def clip(self, *args, **_kw):
-                sent.append(args)
+            def clip(self, data, **kw):
+                sent.append((data, kw["kind"], kw["text"], kw["turn"]))
 
         class Tts:
             def synth(self, text, _cat):
@@ -455,9 +465,9 @@ class ServerTest(unittest.TestCase):
                 fetches.append(song_id)
                 if len(fetches) == 1:
                     brain.sing(song(7))  # asked again mid-download
-                return b"mp3"
+                yield b"mp3"
 
-            brain.music.fetch, sent[:] = slow, []
+            brain.music.stream, sent[:] = slow, []
             brain.sing(song(7))
             self.assertEqual(fetches, ["s7"], "the same song asked during its download doesn't restart it")
             self.assertEqual([a[1] for a in sent], ["music"])
@@ -474,6 +484,34 @@ class ServerTest(unittest.TestCase):
                 brain.sing(song(7))
         finally:
             brain.music, brain.face, brain.tts, brain.played, brain.place = saved
+
+    def test_a_long_song_starts_before_it_has_all_arrived(self):
+        """The face gets the song's start at once, then the rest in pieces; the last one says it's all there."""
+        brain, calls, events = self.server.app.brain, [], []
+
+        class Music:
+            def stream(self, _id):
+                for _ in range(10):
+                    yield b"x" * 64 * 1024
+
+        class Face:
+            def clip(self, data, **kw):
+                calls.append(("clip", len(data), kw.get("more", False), kw.get("duration")))
+                return {"id": "c1"}
+
+            def more(self, cid, data, done):
+                calls.append(("more", len(data), done, cid))
+
+        saved = brain.music, brain.face, brain.publish
+        brain.music, brain.face, brain.publish = Music(), Face(), lambda e, d: events.append((e, d))
+        try:
+            brain.sing({"id": "s", "title": "T", "artist": "A", "duration": 200})
+            self.assertEqual(calls[0], ("clip", 192 * 1024, True, 200), "the start, as soon as there's enough")
+            self.assertEqual(calls[-1][2:], (True, "c1"), "the last piece says it's all there")
+            self.assertEqual(sum(c[1] for c in calls), 640 * 1024, "nothing lost, nothing twice")
+            self.assertEqual(events[-1][0], "net")
+        finally:
+            brain.music, brain.face, brain.publish = saved
 
     def test_brief_runs_a_turn(self):
         code, body = self.post("/brain/brief")
