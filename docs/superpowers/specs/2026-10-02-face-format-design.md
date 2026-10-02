@@ -117,8 +117,8 @@ Modifiers:
 - `color`: a `#rrggbb` color; absent means the ink chosen in the app. v1 shows colors on the vector display; the
   grids (OLED, LED, matrix) light every shape whose luminance is > 0.2 in the app's ink (colored LEDs come with the
   gallery).
-- `level`: intensity 0..1 (default 1): alpha on the vector and LED displays; on monochrome grids, < 0.75 dithers with
-  the `dots` checkerboard.
+- `level`: intensity 0..1 (default 1): alpha on the vector display; on the grids, < 0.75 dithers with the `dots`
+  checkerboard.
 - `mirror: true` with `group`: the group is emitted twice, first with `s = 1`, then with `s = -1`, so that under the
   painter's rule the `s = -1` copy wins, like the `for (const s of [-1, 1])` loops with early returns.
 
@@ -130,29 +130,31 @@ Painter's rule: shapes are tested from the **last** to the first; the first one 
 
 ### Anchors
 
-`anchors` gives, as formulas in the wide space, the fields `looks.js` already reads: `exL exR ey ew eh crown hw`
-(the eyes' centers, their half sizes, the top of the head, the head's half width). They feed `drawExtras` as
-`{ ex: [exL, exR], ey, ew, eh, crown, hw }`, so outfits fit any face. Missing anchors fall back to `pixAnchors`.
+`anchors` gives, as formulas in author units (no `x y`), the fields `looks.js` already reads: `exL exR ey ew eh crown
+hw` (the eyes' centers, their half sizes, the top of the head, the head's half width). `face.anchors(f)` maps them to
+the wide space through `frame` and they feed `drawExtras` as `{ ex: [exL, exR], ey, ew, eh, crown, hw }`, so outfits
+fit any face. Missing anchors, and anchors of a square face, fall back to the display's code anchors.
 
 ## 2. Evaluator and displays (web)
 
-- `web/js/faceexpr.js`: the formula language (parse to a stack program, run it). Pure.
+- `web/js/faceexpr.js`: the formula language (parse, compile to closures). Pure.
 - `web/js/faceformat.js`: pure, no DOM:
   - `compileFace(text) → Face`, throws `Error("shapes[2].rect[1]: unknown name 'xx'")`-style messages;
   - `face.frame(f, minH) → Frame`: evaluates `vars`, `when`, every shape's numbers and the anchors once;
-  - `frame.lit(x, y) → null | { color, level }` and `frame.on(x, y) → boolean` (monochrome, with dithering);
-  - `frame.items`: the evaluated shapes, for the vector display; `frame.anchors`.
+  - `frame.lit(x, y) → null | item` (the shape that decided the point) and `frame.on(x, y) → boolean` (monochrome,
+    with dithering);
+  - `frame.items`: the evaluated shapes, for the vector display; `face.anchors(f)`.
 - `web/js/faceview.js`: the glue to the displays: `formatLit(face)` gives the `(f, x, y, minH)` function that
   `oled()`, `dots()` and `matrice()` already take (frame cached per state object), `formatAnchors(face)`, and
   `drawFace(face)` for `vector()`.
 - `web/faces/*.eliface` (the faces shipped with Eli) and `web/faces/index.json`, the single map of theme id →
-  `{ face, display }` read by the page and the server.
+  `{ face, glow? }` read by the page and the server; the display stays the theme's (`THEMES`).
 - `THEMES` keeps its ids so saved settings stay valid.
 
 ## 3. The ESP32, live (second plan, once the web side passes)
 
-- `firmware/esp32/src/faceformat.{h,cpp}`: the same compile and evaluation in C++17 (float), formulas compiled to the
-  same stack programs, the face kept in PSRAM.
+- `firmware/esp32/src/faceformat.{h,cpp}`: the same compile and evaluation in C++17 (float), the same grammar compiled
+  to stack programs, the face kept in PSRAM.
 - New route `POST /face` (`{"grid": 128 | 42 | 32, "face": {...}}`, at most 16 KB): compile; on success, swap the
   active face; on error, reply 400 with the reason and keep the previous face. `GET /state` and the `/clip` reply
   report the active face id (`""` when none).
