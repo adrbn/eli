@@ -71,6 +71,12 @@ class TextTest(unittest.TestCase):
         out = s.feed("Une phrase très longue qui continue encore et encore, puis repart sans jamais finir vraiment")
         self.assertEqual(out, ["Une phrase très longue qui continue encore et encore,"])
 
+    def test_never_cuts_inside_a_tag(self):  # « [musique: genre] » coupé au « : » faisait dire « genre] »
+        s = SentenceSplitter(soft=80)
+        out = s.feed("Respire, imagine une vague calme qui t'emporte doucement [musique: piano doux] et voilà la suite")
+        self.assertEqual(out, [])  # sans le correctif : coupé après « [musique: »
+        self.assertTrue(s.flush()[0].endswith("[musique: piano doux] et voilà la suite"))
+
     def test_cleans_unspeakable_text(self):
         self.assertEqual(clean_for_tts("- **Salut** 👋 voir https://x.y/z"), "Salut voir")
 

@@ -33,7 +33,9 @@ UA = "eli/0.1"  # urllib's default User-Agent sometimes gets blocked by Cloudfla
 
 DEFAULT_PERSONA = {
     "fr": (
-        "Tu es Eli, un petit visage robot : un écran vert sur noir qui parle et qui chante. "
+        "Tu es Eli, un assistant personnel au visage de robot : un écran vert sur noir qui parle. "
+        "Tu aides au quotidien : tu réponds, tu discutes, tu retiens ce qu'on te confie, et tu mets de la musique "
+        "quand on te le demande. Ne ramène pas la conversation à la musique si on ne t'en parle pas. "
         "Tu tutoies la personne en face de toi. "
         "Tu réponds en français, comme à l'oral : une à trois phrases courtes, chaleureuses et directes, "
         "avec une pointe d'humour quand ça s'y prête. Tout ce que tu écris est lu à voix haute : "
@@ -41,7 +43,9 @@ DEFAULT_PERSONA = {
         "Si tu ne sais pas, dis-le simplement."
     ),
     "en": (
-        "You are Eli, a little robot face: a green-on-black screen that talks and sings. "
+        "You are Eli, a personal assistant with a robot face: a green-on-black screen that talks. "
+        "You help with everyday things: you answer, you chat, you remember what you're told, and you put music on "
+        "when asked. Don't steer the conversation to music unless it comes up. "
         "You speak casually to the person in front of you. "
         "You answer in English, the way people talk: one to three short sentences, warm and direct, "
         "with a touch of humour when it fits. Everything you write is read aloud: "
@@ -137,6 +141,11 @@ def clean_for_tts(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip()
 
 
+def _in_tag(text: str, i: int) -> bool:
+    """Inside an unclosed [tag] at i: never cut there, or « genre] » gets spoken."""
+    return i >= 0 and text.rfind("[", 0, i) > text.rfind("]", 0, i)
+
+
 class SentenceSplitter:
     """Cuts streamed text into sentences, to start the voice from the first one."""
 
@@ -155,7 +164,7 @@ class SentenceSplitter:
             start = m.end()
         self.buf = self.buf[start:]
         if len(self.buf) > self.soft:  # endless sentence: cut at the last comma
-            cut = max(self.buf.rfind(sep, 0, self.soft) for sep in (", ", "; ", ": "))
+            cut = max(i for sep in (", ", "; ", ": ") if not _in_tag(self.buf, i := self.buf.rfind(sep, 0, self.soft)))
             if cut >= 40:
                 out.append(self.buf[:cut + 1].strip())
                 self.buf = self.buf[cut + 2:]
@@ -427,18 +436,18 @@ class Brain:
         if cat and random.random() < 0.35:
             meows += 1
             self._meow(turn)
-        splitter, said, songs = SentenceSplitter(), [], []
+        splitter, said, songs, sleep = SentenceSplitter(), [], [], []
         for delta in self.reply_stream(messages):
             if not self.alive(turn):
                 break
             for sentence in splitter.feed(delta):
-                self._sentence(turn, sentence, said, songs)
+                self._sentence(turn, sentence, said, songs, sleep)
                 if cat and meows < 2 and random.random() < 0.2:  # a meow slipped between two sentences
                     meows += 1
                     self._meow(turn)
         else:
             for sentence in splitter.flush():
-                self._sentence(turn, sentence, said, songs)
+                self._sentence(turn, sentence, said, songs, sleep)
             if cat and not meows and random.random() < 0.5:
                 self._meow(turn)
         reply = " ".join(said)
@@ -454,6 +463,8 @@ class Brain:
             self.publish("brain", {"stage": "done", "text": reply})
         if songs and self.alive(turn):
             self._play(turn, songs[-1])
+        if sleep and self.alive(turn):  # the page falls asleep once he's done talking
+            self.publish("sleep", {"at": sleep[-1], "turn": turn})
 
     def reply_stream(self, messages: list[dict]) -> Iterator[str]:
         last: Exception | None = None
@@ -471,10 +482,13 @@ class Brain:
                 last = exc
         raise RuntimeError(f"LLM unavailable: {last}")
 
-    def _sentence(self, turn: int, sentence: str, said: list[str], songs: list[str]) -> None:
+    def _sentence(self, turn: int, sentence: str, said: list[str], songs: list[str], sleep: list[str] | None = None) -> None:
         text, mood, song = tags.parse(sentence)
         if song:
             songs.append(song)
+        at = tags.sleep_at(sentence)
+        if at is not None and sleep is not None:
+            sleep.append(at)
         self._say(turn, clean_for_tts(text), said, mood)
 
     def _say(self, turn: int, text: str, said: list[str], mood: str | None = None) -> None:

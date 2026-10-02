@@ -7,6 +7,7 @@
 export const REST = { o: 0, w: 0.3, r: 0, t: 0 };
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 const ease = (a, b, k, dt) => a + (b - a) * (1 - Math.exp(-k * dt));
+const WARM = 0.55; // sans humeur annoncée, les yeux sourient un peu : il est content d'être là
 const DROWSY_AFTER = 120; // s sans rien → somnole, puis s'endort une minute plus tard
 export const BREATH = 4.5; // s par respiration endormie (le ronflement s'y cale)
 const bell = (u) => Math.sin(Math.PI * clamp(u, 0, 1));
@@ -26,7 +27,7 @@ export const MOODS = {
 
 // Les gestes spontanés, quand personne ne bouge : [nom, durée s, poids]. Le poids peut dépendre de la somnolence.
 const GESTURES = [
-  ['glance', 2.2, () => 4], ['lookaround', 3, () => 2], ['doubleblink', 0.6, () => 3], ['smile', 1.8, () => 2],
+  ['glance', 2.2, () => 4], ['lookaround', 3, () => 2], ['doubleblink', 0.6, () => 3], ['smile', 2.4, () => 4],
   ['curious', 1.6, () => 2], ['hum', 3.5, () => 1.5], ['sigh', 1.8, () => 1],
   ['yawn', 3, (drowsy, idle) => (idle > 50 ? 1.5 : 0) + 8 * drowsy], ['meow', 0.1, (d, i, cat) => (cat ? 1.2 : 0)],
 ];
@@ -41,6 +42,13 @@ export class Face {
     this.cat = false; // un visage de chat : il miaule parfois tout seul
     this.g = null; // geste en cours { name, t, dur, side }
     this.nextG = 5;
+    this.forced = false; // endormi sur commande : ni la souris ni le serveur ne le réveillent
+    this.groggy = false; // réveil doux en cours : les yeux s'ouvrent lentement, puis il bâille
+  }
+
+  sleep() {
+    this.forced = true;
+    this.g = null;
   }
 
   blink() {
@@ -48,8 +56,13 @@ export class Face {
     this.e.nb = 2.2 + Math.random() * 3.8;
   }
 
-  wake() {
-    if (this.e.sleep > 0.3) { // réveillé en sursaut : grands yeux, puis ça retombe
+  // soft : un simple signe de vie (souris, serveur au repos), qui ne tire pas d'un sommeil commandé.
+  wake(soft = false) {
+    if (this.forced) {
+      if (soft) return;
+      this.forced = false;
+      this.groggy = true;
+    } else if (this.e.sleep > 0.3) { // réveillé en sursaut : grands yeux, puis ça retombe
       this.blink();
       this.e.sc = 1.3;
     }
@@ -95,9 +108,13 @@ export class Face {
     const e = this.e, m = this.m;
     this.T += dt;
     this.idle = s.mode === 'idle' ? this.idle + dt : 0;
-    const drowsy = clamp((this.idle - DROWSY_AFTER) / 60, 0, 1);
-    e.sleep = ease(e.sleep, drowsy, drowsy < e.sleep ? 6 : 0.8, dt);
+    const drowsy = this.forced ? 1 : clamp((this.idle - DROWSY_AFTER) / 60, 0, 1);
+    e.sleep = ease(e.sleep, drowsy, drowsy < e.sleep ? (this.groggy ? 0.35 : 6) : 0.8, dt);
     const asleep = e.sleep > 0.6;
+    if (this.groggy && e.sleep < 0.35) { // les yeux à moitié ouverts : il bâille, puis finit de s'éveiller
+      this.groggy = false;
+      if (s.mode === 'idle') this.g = { name: 'yawn', t: 0, dur: 3.4, side: 1 };
+    }
     let started = null, gm = null;
     if (s.mode === 'idle' && !asleep) {
       this.nextG -= dt;
@@ -125,7 +142,7 @@ export class Face {
       e.tx = 0.4 * Math.sin(s.sway || 0);
       e.ty = -0.1 - 0.55 * p;
       e.av = 0;
-      e.hap = ease(e.hap, s.vocal ? 0.55 * (1 - Math.max(0, p)) : 1, 5, dt);
+      e.hap = ease(e.hap, s.vocal ? 0.85 - 0.35 * Math.max(0, p) : 1, 5, dt); // il chante content : les notes hautes plissent un peu
       e.sc = ease(e.sc, 1 + 0.06 * (s.energy || 0) + 0.05 * Math.max(0, -p), 6, dt);
       e.sq = ease(e.sq, 0.75 * Math.max(0, p), 6, dt);
       this.feel(dt, s);
@@ -203,7 +220,7 @@ export class Face {
 
   relax(dt, scale) {
     const e = this.e, md = MOODS[this.mood] || {};
-    e.hap = ease(e.hap, md.hap || 0, 6, dt);
+    e.hap = ease(e.hap, this.mood ? md.hap || 0 : WARM, 6, dt);
     e.sc = ease(e.sc, scale * (md.sc || 1), 6, dt);
     e.sq = ease(e.sq, md.sq || 0, 6, dt);
   }

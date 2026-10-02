@@ -4,7 +4,7 @@ import { HOP, SR, crossed, encodeWav, mouthAt, sample } from './analysis.js';
 import { Mic, Player, to16k } from './audio.js';
 import { Face } from './face.js';
 import { Segmenter } from './hotword.js';
-import { Sleeper } from './sleep.js';
+import { Sleeper, wakeTime } from './sleep.js';
 import { GREEN, LOOKS, Notes, mixColor } from './looks.js';
 import { THEMES, getCustom, setCustom, setInk, themeById } from './themes.js';
 import * as devlog from './devlog.js';
@@ -213,8 +213,9 @@ function connect() {
   });
   on('state', (d) => {
     serverMode = d.mode;
-    face.wake();
+    face.wake(d.mode === 'idle'); // le serveur qui se repose ne tire pas d'un sommeil commandé
   });
+  on('sleep', (d) => { if (d.turn >= minTurn) pendingSleep = { until: wakeTime(d.at), turn: d.turn } });
   on('gaze', (d) => { serverGaze = d.gaze });
   on('theme', (d) => { if (d.from !== CLIENT) applyTheme(d.id, false) });
   on('stop', (d) => {
@@ -822,6 +823,24 @@ function fit(canvas) {
 }
 
 let last = performance.now(), wasAsleep = false;
+// Sommeil commandé (« va dormir ») : il s'endort quand il a fini de parler, jusqu'à l'heure dite (8 h au plus).
+let pendingSleep = null, sleepUntil = 0;
+function goToSleep(until) {
+  face.sleep();
+  sleepUntil = until;
+  store.set('sleepUntil', until);
+}
+function watchSleep() {
+  if (pendingSleep && !player.busy()) {
+    if (pendingSleep.turn >= minTurn) goToSleep(pendingSleep.until);
+    pendingSleep = null;
+  }
+  if (face.forced && Date.now() >= sleepUntil) face.wake(); // l'heure : réveil doux, puis le point du matin
+  if (!face.forced && sleepUntil) {
+    sleepUntil = 0;
+    store.set('sleepUntil', 0);
+  }
+}
 // La tenue : selon le genre du morceau chanté (événement « genre »), jamais, ou toujours la même (Réglages).
 const notes = new Notes(), clipLooks = new Map();
 let ink = settings.color;
@@ -842,6 +861,7 @@ function frame(now) {
   setInk(ink);
   if (f.gesture === 'meow' && !passive && !MIRROR && player.ready) post('/brain/meow').catch(report);
   sleeper.update(f, settings.snore, face.cat);
+  watchSleep();
   if (wasAsleep && !f.asleep) maybeBrief();
   wasAsleep = f.asleep;
   document.body.classList.toggle('asleep', f.asleep);
@@ -876,7 +896,7 @@ addEventListener('pointerdown', () => {
 }, { capture: true });
 addEventListener('pointermove', (e) => {
   showDock();
-  face.wake();
+  face.wake(true);
   if (!settings.mouse || e.pointerType === 'touch') return;
   const r = el.screen.getBoundingClientRect();
   mouseGaze = {
@@ -1117,5 +1137,6 @@ claim(); // les autres écrans déjà ouverts se taisent
 showDock();
 player.unlock().catch(() => { /* le navigateur attend un clic : #wake le demande */ });
 setTimeout(() => { if (!passive && !BARE) el.wake.hidden = player.ready }, 800);
+if (store.get('sleepUntil', 0) > Date.now()) goToSleep(store.get('sleepUntil', 0)); // rechargé en pleine nuit : il dort encore
 requestAnimationFrame(frame);
 window.eli = { face, player, mic, frame }; // pour inspecter (et animer un onglet masqué) depuis la console

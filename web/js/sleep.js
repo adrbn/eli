@@ -2,6 +2,23 @@
 // le robot ronfle (râle à l'inspiration, petit sifflet à l'expiration), le chat ronronne.
 import { BREATH } from './face.js';
 
+export const MAX_SLEEP_H = 8;
+const DAY = 24 * 3600e3;
+
+// Sommeil commandé ([dodo…] du serveur) → l'heure du réveil, en ms : « 7h30 » / « 7:30 » = la prochaine fois
+// que cette heure sonne, « +20 » = dans 20 min (un jour au plus), sinon MAX_SLEEP_H heures.
+export function wakeTime(at, now = new Date()) {
+  const t = now.getTime(), rel = /^\+\s*(\d{1,6})$/.exec(at || '');
+  if (rel) return t + Math.min(Number(rel[1]) * 60e3, DAY);
+  const abs = /^(\d{1,2})\s*[:h]\s*(\d{2})?$/i.exec((at || '').trim());
+  if (abs && Number(abs[1]) < 24 && Number(abs[2] || 0) < 60) {
+    const d = new Date(now);
+    d.setHours(Number(abs[1]), Number(abs[2] || 0), 0, 0);
+    return d.getTime() > t ? d.getTime() : d.getTime() + DAY;
+  }
+  return t + MAX_SLEEP_H * 3600e3;
+}
+
 export class Sleeper {
   constructor(player) {
     this.player = player;
