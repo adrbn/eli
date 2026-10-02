@@ -1,0 +1,15 @@
+{
+  "name": "eli-trailer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "studio": "remotion studio src/index.jsx",
+    "render": "remotion render src/index.jsx Trailer out/eli-trailer.mp4"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.532",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "^4.0.532"
+  }
+}
