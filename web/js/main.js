@@ -982,7 +982,7 @@ function frame(now) {
   const dt = Math.min(0.05, Math.max(0, (now - last) / 1000));
   last = now;
   const s = sense(now), f = face.update(dt, s);
-  f.notes = notes.update(dt, settings.notes && s.mode === 'sing', s.beat);
+  f.notes = notes.update(dt, settings.notes && s.mode === 'sing', s.beat, face.mood);
   f.look = lookFor(s.mode === 'sing' ? s.song : null);
   const nextInk = mixColor(ink, settings.color, 1 - Math.exp(-dt * 3)); // la tenue habille, elle ne repeint pas : Eli garde sa couleur
   if (nextInk !== ink) document.documentElement.style.setProperty('--ink', nextInk); // les paroles et le lecteur prennent sa couleur

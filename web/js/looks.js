@@ -27,20 +27,30 @@ export function catAnchors(f) {
   return { ex: [0.75 + gx * 0.06, 1.25 + gx * 0.06], ey, ew: 0.12 * sc, eh: 0.12 * sc, crown: 0.2 - bo * 0.04, hw: 0.64 };
 }
 
-// Les notes : nées sur les temps forts près de la bouche, elles montent en s'écartant puis s'effacent.
+// Les notes : nées sur les temps forts près de la bouche, elles montent en s'écartant puis s'effacent. Et les
+// réactions : un cœur qui monte sur le côté pour [amour], un « ! » qui clignote près de l'œil pour [surprise].
 export class Notes {
-  constructor() { this.list = [] }
+  constructor() { this.list = []; this.mood = null; this.heartIn = 0 }
 
-  update(dt, singing, beat) {
+  update(dt, singing, beat, mood = null) {
     // Peu nombreuses, et nées sur les joues, hors du visage : elles montent sur les bords sans passer devant les yeux.
-    if (singing && beat > 0.7 && this.list.length < 3 && Math.random() < 0.45) {
+    if (singing && beat > 0.7 && this.list.filter((n) => n.kind === 'note').length < 3 && Math.random() < 0.45) {
       const dir = (this.side = -(this.side || 1));
-      this.list.push({ x: 1 + dir * (0.74 + Math.random() * 0.06), y: 0.82, dir, age: 0, life: 1.8 + Math.random() * 0.6, two: Math.random() < 0.3, ph: Math.random() * TAU });
+      this.list.push({ kind: 'note', x: 1 + dir * (0.74 + Math.random() * 0.06), y: 0.82, dir, vy: 0.26, age: 0, life: 1.8 + Math.random() * 0.6, two: Math.random() < 0.3, ph: Math.random() * TAU });
+    }
+    if (mood !== this.mood) {
+      this.mood = mood;
+      this.heartIn = 0;
+      if (mood === 'surprise') this.list.push({ kind: 'bang', x: 0.28, y: 0.3, dir: 0, vy: 0, age: 0, life: 0.9, ph: 0 });
+    }
+    if (mood === 'amour' && (this.heartIn -= dt) <= 0 && this.list.filter((n) => n.kind === 'heart').length < 2) {
+      this.list.push({ kind: 'heart', x: 1.7, y: 0.3, dir: 0, vy: 0.12, age: 0, life: 1.8, ph: Math.random() * TAU });
+      this.heartIn = 1.4;
     }
     for (const n of this.list) {
       n.age += dt;
       n.x += n.dir * 0.06 * dt;
-      n.y -= 0.26 * dt;
+      n.y -= n.vy * dt;
     }
     this.list = this.list.filter((n) => n.age < n.life && n.y > -0.2);
     return this.list;
@@ -67,11 +77,34 @@ export function drawExtras(ctx, f, a, look, notes, on, off, scene = on) {
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
   for (const n of notes || []) {
+    const x = n.x + 0.02 * Math.sin(n.age * 4 + n.ph);
+    if (n.kind === 'bang') { // trois éclairs secs, comme un clignotant
+      ctx.globalAlpha = n.age % 0.3 < 0.18 ? 1 : 0;
+      bang(ctx, n.x, n.y, on);
+      continue;
+    }
     ctx.globalAlpha = Math.min(1, (n.life - n.age) / 0.5, n.age / 0.15);
-    note(ctx, n.x + 0.02 * Math.sin(n.age * 4 + n.ph), n.y, n.two, on);
+    if (n.kind === 'heart') heart(ctx, x, n.y, on);
+    else note(ctx, x, n.y, n.two, on);
   }
   ctx.globalAlpha = 1;
   if (L?.acc) ACCESSORIES[L.acc](ctx, a, on, off, f); // l'accessoire par-dessus les notes
+}
+
+// Le cœur du README, pixel pour pixel : à 1/64 la cellule, l'échancrure du haut survit à la grille de l'OLED.
+const HEART = ['.##.##.', '#######', '#######', '.#####.', '..###..', '...#...'];
+function heart(ctx, x, y, on) {
+  const c = 1 / 64;
+  ctx.fillStyle = on;
+  HEART.forEach((row, j) => [...row].forEach((p, i) => {
+    if (p === '#') ctx.fillRect(x + (i - 3.5) * c, y + (j - 3) * c, c + 0.001, c + 0.001);
+  }));
+}
+
+function bang(ctx, x, y, on) {
+  ctx.fillStyle = on;
+  ctx.fillRect(x - 0.016, y - 0.09, 0.032, 0.075);
+  ctx.fillRect(x - 0.016, y + 0.02, 0.032, 0.032);
 }
 
 function note(ctx, x, y, two, on) {
