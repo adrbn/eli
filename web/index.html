@@ -26,6 +26,7 @@
     --danger: #ff7a6b;
     --radius: 14px;
     --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+    --pixel: "Departure Mono", var(--mono); /* la voix d'Eli à l'écran ; net aux multiples de 11px (sa grille) */
     --ease: cubic-bezier(.22, 1, .36, 1);
     --chrome: 250px; /* ce que l'interface prend en hauteur autour de l'écran */
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
@@ -33,6 +34,7 @@
     background: var(--bg);
   }
   * { box-sizing: border-box; }
+  @font-face { font-family: "Departure Mono"; src: url(fonts/DepartureMono-Regular.woff2) format("woff2"); font-display: block; } /* OFL, fonts/DepartureMono-OFL.txt */
   html, body { height: 100%; margin: 0; }
   body { background: var(--bg); overflow: hidden; -webkit-font-smoothing: antialiased; }
   body.calm { cursor: none; }
@@ -55,15 +57,15 @@
   .bezel[data-screen="free"] { padding: 0; background: none; box-shadow: none; border-radius: 0; }
   .bezel[data-screen="free"] #screen { width: min(calc(100vw - 32px), 1600px); height: max(160px, calc(100dvh - var(--chrome) + 40px)); aspect-ratio: auto; background: var(--bg); border-radius: 0; }
   body:is(.bare, [data-layout="widget"]) .bezel[data-screen="free"] #screen { width: 100vw; height: 100dvh; }
-  .zzz { position: absolute; top: 4%; right: 6%; display: flex; gap: .15em; color: var(--ink); font: 700 clamp(14px, 2.2vw, 26px) var(--mono); pointer-events: none; opacity: 0; transition: opacity 1.2s; }
+  .zzz { position: absolute; top: 4%; right: 6%; display: flex; gap: .15em; color: var(--ink); font: 22px var(--pixel); pointer-events: none; opacity: 0; transition: opacity 1.2s; }
   .zzz span { animation: zzz 3.2s ease-in-out infinite; text-shadow: 0 0 10px color-mix(in srgb, var(--green) 50%, transparent); }
-  .zzz span:nth-child(2) { animation-delay: .5s; font-size: 1.25em; }
-  .zzz span:nth-child(3) { animation-delay: 1s; font-size: 1.55em; }
+  .zzz span:nth-child(2) { animation-delay: .5s; font-size: 1.5em; }
+  .zzz span:nth-child(3) { animation-delay: 1s; font-size: 2em; }
   body.asleep .zzz { opacity: .9; }
   @keyframes zzz { 0%, 100% { transform: translateY(6px); opacity: .25; } 50% { transform: translateY(-8px); opacity: 1; } }
-  .caption { position: relative; z-index: 1; min-height: 1.5em; max-width: min(820px, 92vw); margin: 0; text-align: center; font-size: clamp(16px, 2vw, 21px); line-height: 1.45; color: var(--text); text-wrap: balance; transition: opacity .3s; }
+  .caption { position: relative; z-index: 1; min-height: 1.5em; max-width: min(820px, 92vw); margin: 0; text-align: center; font: 22px/33px var(--pixel); font-synthesis: none; color: var(--text); text-wrap: balance; transition: opacity .3s; }
   .caption:empty { opacity: 0; }
-  .caption.you { color: var(--muted); font-style: italic; }
+  .caption.you { color: var(--muted); font: italic clamp(16px, 2vw, 20px)/1.45 -apple-system, system-ui, sans-serif; } /* tes mots à toi, pas sa voix */
   body.playing .caption.music { display: none; } /* le lecteur dit déjà ce qu'il chante */
 
   /* --- le lecteur : la ligne chantée, la suivante, et le morceau ----------------------------- */
@@ -312,7 +314,7 @@
   .ob-pips li.on { background: var(--green); box-shadow: 0 0 8px color-mix(in srgb, var(--green) 55%, transparent); }
   .ob-step { display: grid; justify-items: center; gap: 14px; width: 100%; animation: step .28s var(--ease); }
   @keyframes step { from { opacity: 0; transform: translateY(6px); } }
-  .ob-say { margin: 0; max-width: 30ch; font-size: 1.5rem; font-weight: 600; line-height: 1.25; letter-spacing: -.018em; text-wrap: balance; }
+  .ob-say { margin: 0; max-width: 32ch; font: 22px/33px var(--pixel); font-synthesis: none; color: var(--text); text-wrap: balance; }
   .ob-note { margin: -4px 0 0; max-width: 54ch; font-size: .875rem; line-height: 1.5; color: var(--muted); text-wrap: pretty; }
   .ob-note kbd { font-size: .75rem; }
   .ob-seg { display: inline-flex; padding: 3px; background: #ffffff08; border: 1px solid var(--line); border-radius: 10px; }
@@ -329,7 +331,7 @@
   .ob-voice.busy small::after { content: " ▪▪▪"; color: var(--green); animation: blip 1s steps(2) infinite; }
   .ob-howto { display: grid; gap: 10px; width: min(470px, 100%); margin: 2px 0 0; padding: 0; list-style: none; counter-reset: how; text-align: left; }
   .ob-howto li { display: flex; align-items: center; gap: 12px; min-height: 36px; font-size: .875rem; counter-increment: how; }
-  .ob-howto li::before { content: counter(how); flex: none; display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid color-mix(in srgb, var(--green) 40%, #000); border-radius: 7px; font: 600 .75rem var(--mono); color: var(--green); }
+  .ob-howto li::before { content: counter(how); flex: none; display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid color-mix(in srgb, var(--green) 40%, #000); border-radius: 7px; font: 11px var(--pixel); color: var(--green); }
   .ob-howto .btn { flex: none; color: var(--text); text-decoration: none; }
   .ob-howto span { color: var(--text); }
   .ob-row { display: flex; flex: 1; gap: 8px; margin: 0; }
