@@ -69,7 +69,7 @@
   body.playing .caption.music { display: none; } /* le lecteur dit déjà ce qu'il chante */
 
   /* --- le lecteur : la ligne chantée, la suivante, et le morceau ----------------------------- */
-  .now { display: grid; justify-items: center; gap: 12px; width: min(640px, 92vw); animation: rise .5s var(--ease); }
+  .now { display: flex; flex-direction: column; align-items: center; gap: 12px; width: min(640px, 92vw); animation: rise .5s var(--ease); }
   @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
   .now-lyrics { display: grid; gap: 4px; min-height: 3.2em; text-align: center; }
   .now-line { margin: 0; font-size: clamp(18px, 2.3vw, 26px); font-weight: 600; letter-spacing: -.01em; line-height: 1.3; color: var(--ink); text-shadow: 0 0 22px color-mix(in srgb, var(--ink) 35%, transparent); text-wrap: balance; }
@@ -303,7 +303,7 @@
   body[data-layout="notch-open"] #screen { width: 168px; min-width: 0; border-radius: 6px; transition: none; }
   body[data-layout="notch-open"] :is(.caption, .now) { position: absolute; left: 204px; right: 18px; top: calc(var(--top) + 12px); width: auto; max-width: none; }
   body[data-layout="notch-open"] .caption { text-align: left; font-size: 14px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
-  body[data-layout="notch-open"] .now { justify-items: stretch; gap: 8px; animation: none; }
+  body[data-layout="notch-open"] .now { align-items: stretch; gap: 8px; animation: none; }
   body[data-layout="notch-open"] .now-lyrics { min-height: 0; text-align: left; }
   body[data-layout="notch-open"] .now-line { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   body[data-layout="notch-open"] .now-next { display: none; }
