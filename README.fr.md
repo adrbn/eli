@@ -146,6 +146,7 @@ micro de marcher en http simple. Appui long à deux doigts pour changer d'adress
 | <kbd>V</kbd> | Réglages → Visages : la galerie, avec les réglages du « Sur mesure » |
 | <kbd>M</kbd> | La bibliothèque : recherche, lecture aléatoire, un clic pour qu'il chante (le serveur se règle dans Réglages → Musique) |
 | <kbd>P</kbd> | Lecture / pause du morceau |
+| <kbd>C</kbd> | Montrer / cacher les paroles (aussi un bouton dans le lecteur) |
 | <kbd>↑</kbd> / <kbd>↓</kbd> | Rappelle les messages déjà envoyés, comme dans un terminal |
 | <kbd>Échap</kbd> | Ferme les panneaux et le fait taire (le morceau continue, même s'il télécharge encore) |
 | Clic hors d'un panneau | Le ferme |

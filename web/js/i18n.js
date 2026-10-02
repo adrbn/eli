@@ -113,6 +113,8 @@ export const EN = {
   'Musique': 'Music',
   'Bibliothèque': 'Library',
   'Lecture continue': 'Continuous play',
+  'Paroles': 'Lyrics',
+  'Paroles (C)': 'Lyrics (C)',
   'Lecture continue : un autre morceau au hasard à la fin': 'Continuous play: another random song at the end',
   'Lecture continue : j’enchaîne au hasard.': 'Continuous play: I’ll keep going at random.',
   'Je m’arrêterai à la fin du morceau.': 'I’ll stop at the end of the song.',

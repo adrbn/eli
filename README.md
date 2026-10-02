@@ -143,6 +143,7 @@ Long-press with two fingers to change the address.
 | <kbd>V</kbd> | Settings → Faces: the gallery, with the "custom" face's settings |
 | <kbd>M</kbd> | The library: search, shuffle, click to sing (server settings live in Settings → Music) |
 | <kbd>P</kbd> | Play / pause the song |
+| <kbd>C</kbd> | Show / hide the lyrics (also a button in the player) |
 | <kbd>↑</kbd> / <kbd>↓</kbd> | Recall previously sent messages, like a shell |
 | <kbd>Esc</kbd> | Closes panels and shuts it up (the song keeps playing, even one still downloading) |
 | Click outside a panel | Closes it |

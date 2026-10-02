@@ -71,6 +71,7 @@
   /* --- le lecteur : la ligne chantée, la suivante, et le morceau ----------------------------- */
   .now { display: flex; flex-direction: column; align-items: center; gap: 12px; width: min(640px, 92vw); animation: rise .5s var(--ease); }
   @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
+  body.no-lyrics .now-lyrics { display: none; }
   .now-lyrics { display: grid; gap: 4px; min-height: 3.2em; text-align: center; }
   .now-line { margin: 0; font-size: clamp(18px, 2.3vw, 26px); font-weight: 600; letter-spacing: -.01em; line-height: 1.3; color: var(--ink); text-shadow: 0 0 22px color-mix(in srgb, var(--ink) 35%, transparent); text-wrap: balance; }
   .now-line.in { animation: line .45s var(--ease); }
@@ -78,8 +79,8 @@
   .now-next { margin: 0; font-size: clamp(13px, 1.5vw, 16px); color: var(--faint); text-wrap: balance; }
   .now-bar { display: flex; align-items: center; gap: 10px; width: 100%; padding: 5px 8px 5px 5px; background: #0c0f0c; border: 1px solid var(--line); border-radius: 999px; }
   .now-bar .icon-btn { width: 34px; height: 34px; padding: 0; justify-content: center; color: var(--ink); }
-  .now-bar .now-auto { color: var(--faint); }
-  .now-bar .now-auto[aria-pressed="true"] { color: var(--ink); background: color-mix(in srgb, var(--ink) 10%, transparent); }
+  .now-bar .now-toggle { color: var(--faint); }
+  .now-bar .now-toggle[aria-pressed="true"] { color: var(--ink); background: color-mix(in srgb, var(--ink) 10%, transparent); }
   .now-play { background: color-mix(in srgb, var(--ink) 16%, transparent) !important; }
   .now-title { flex: 0 1 auto; min-width: 0; max-width: 42%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }
   .now-title b { font-weight: 600; }
@@ -500,7 +501,10 @@
       <span class="now-time" id="now-time">0:00</span>
       <input class="seek" id="now-seek" type="range" min="0" max="1" step="0.001" value="0" aria-label="Position dans le morceau">
       <span class="now-time" id="now-dur">0:00</span>
-      <button class="icon-btn now-auto" id="now-auto" type="button" aria-pressed="false" title="Lecture continue : un autre morceau au hasard à la fin" aria-label="Lecture continue">
+      <button class="icon-btn now-toggle" id="now-lyrics" type="button" aria-pressed="true" title="Paroles (C)" aria-label="Paroles">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4zM8 9h8M8 12h5"/></svg>
+      </button>
+      <button class="icon-btn now-toggle now-auto" id="now-auto" type="button" aria-pressed="false" title="Lecture continue : un autre morceau au hasard à la fin" aria-label="Lecture continue">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h3.5c4.5 0 4.5 10 9 10H20M4 17h3.5c1.6 0 2.6-1.3 3.4-3M20 7h-3.5c-1.6 0-2.6 1.3-3.4 3M17 4l3 3-3 3M17 14l3 3-3 3"/></svg>
       </button>
       <button class="icon-btn" id="now-stop" type="button" title="Arrêter le morceau" aria-label="Arrêter le morceau">

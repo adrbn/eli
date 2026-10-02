@@ -687,6 +687,17 @@ function renderNow() {
   el.nowIcon.setAttribute('d', paused ? 'M8 5.5v13l11-6.5z' : 'M9 6v12M15 6v12');
   el.nowPlay.setAttribute('aria-label', paused ? t('Lecture') : 'Pause');
 }
+// les paroles, à cacher ou montrer pendant le morceau (bouton de la barre, ou C)
+let lyricsOn = store.get('lyrics', true);
+const lyricsBtn = $('#now-lyrics');
+function showLyrics(on) {
+  lyricsOn = on;
+  store.set('lyrics', on);
+  document.body.classList.toggle('no-lyrics', !on);
+  lyricsBtn.setAttribute('aria-pressed', String(on));
+}
+showLyrics(lyricsOn);
+lyricsBtn.addEventListener('click', () => showLyrics(!lyricsOn));
 // ponytail: chaque page ouverte enchaîne de son côté ; deux pages en lecture continue sauteraient deux fois
 let autoplay = store.get('autoplay', false), lastSong = null;
 const autoBtn = $('#now-auto');
@@ -1051,6 +1062,8 @@ addEventListener('keydown', (e) => {
   } else if (e.key === 'Enter') {
     e.preventDefault();
     el.input.focus();
+  } else if (e.key === 'c' || e.key === 'C') {
+    showLyrics(!lyricsOn);
   } else if (e.key === 'p' || e.key === 'P') {
     toggleMusic();
   } else if (e.key === 'ArrowUp') {
