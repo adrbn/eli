@@ -1,0 +1,23 @@
+{
+  "format": 1,
+  "id": "matrice",
+  "name": "Matrice",
+  "author": "adrbn",
+  "license": "MIT",
+  "space": "square",
+  "vars": {
+    "ex": "s*0.37 + gx*0.1",
+    "ey": "-0.2 + gy*0.08 - bo*0.09",
+    "rx": "0.17*sc",
+    "ry": "max(0.04, 0.23*sc*open)",
+    "mrx": "0.17 + w*0.17 - r*0.12",
+    "mry": "0.05 + o*0.18 + r*0.05"
+  },
+  "shapes": [
+    { "region": "sq(x/mrx) + sq((y - 0.45)/mry) <= 1 && ((t > 0.5 && abs(y - 0.45) < 0.06) || mry < 0.12 || sq(x/(mrx - 0.11)) + sq((y - 0.45)/(mry - 0.11)) > 1)" },
+    { "mirror": true, "group": [
+      { "ellipse": ["ex", "ey", "rx", "ry"], "when": "!(hap > 0.5)" },
+      { "region": "abs(hypot((x - ex)/0.18, (y - ey - 0.1)/0.22) - 1) < 0.38 && y < ey + 0.06", "when": "hap > 0.5" }
+    ]}
+  ]
+}

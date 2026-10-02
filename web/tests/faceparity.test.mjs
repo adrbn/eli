@@ -49,3 +49,19 @@ test('pixel.eliface draws exactly pixLit', () => {
   const diffs = wideDiffs(pixLit, load('pixel'));
   assert.equal(diffs.length, 0, report(diffs));
 });
+
+test('chat-pixel.eliface draws exactly catLit', () => {
+  const diffs = wideDiffs(catLit, load('chat-pixel'));
+  assert.equal(diffs.length, 0, report(diffs));
+});
+
+test('matrice.eliface draws exactly matLit on the 19×19 matrix', () => {
+  const N = 19, fmt = formatLit(load('matrice'), 'square'), diffs = [];
+  for (const f of sweep(400)) {
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+      const u = -1 + ((i + 0.5) * 2) / N, v = -1 + ((j + 0.5) * 2) / N;
+      if (Boolean(matLit(f, u, v)) !== fmt(f, u, v, 1.1 / N)) diffs.push({ i, j, f });
+    }
+  }
+  assert.equal(diffs.length, 0, report(diffs));
+});

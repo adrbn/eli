@@ -27,7 +27,7 @@ written once this one passes.
 - Without `?faces=format` the page must behave exactly as before.
 - A face file is at most 16 KB, 64 shapes after mirroring, 32 vars.
 - Parity faces: **0 differing cells**. A flipped cell is fixed in the face file, never with a tolerance.
-- Run tests with `node --test web/tests/` from the repo root.
+- Run tests with `node --test 'web/tests/*.test.mjs'` from the repo root.
 
 ## Files
 
@@ -61,7 +61,7 @@ written once this one passes.
 
 ```js
 // web/tests/faceexpr.test.mjs
-// The formula language of .eliface faces: `node --test web/tests`.
+// The formula language of .eliface faces: `node --test 'web/tests/*.test.mjs'`.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { box, compileExpr } from '../js/faceexpr.js';
@@ -268,7 +268,7 @@ git commit -m "feat: formula language for declarative faces"
 
 ```js
 // web/tests/faceformat.test.mjs
-// Compiling and evaluating .eliface faces: `node --test web/tests`.
+// Compiling and evaluating .eliface faces: `node --test 'web/tests/*.test.mjs'`.
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { compileFace } from '../js/faceformat.js';
@@ -613,7 +613,7 @@ export { catLit, matLit, pixLit };
 
 ```js
 // web/tests/faceparity.test.mjs
-// The .eliface files against the code faces they replace, cell by cell: `node --test web/tests`.
+// The .eliface files against the code faces they replace, cell by cell: `node --test 'web/tests/*.test.mjs'`.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
@@ -743,7 +743,7 @@ in a `node -e` one-off, find the formula whose arithmetic differs from `pixLit`,
 
 - [ ] **Step 7: Run the whole suite and commit**
 
-Run: `node --test web/tests/`
+Run: `node --test 'web/tests/*.test.mjs'`
 Expected: PASS (all previous tests plus the new ones).
 
 ```bash
@@ -957,7 +957,7 @@ git commit -m "feat: Matrice as an .eliface file, cell for cell"
 
 ```js
 // web/tests/faceview.test.mjs
-// Loading the shipped faces and drawing them on the vector display: `node --test web/tests`.
+// Loading the shipped faces and drawing them on the vector display: `node --test 'web/tests/*.test.mjs'`.
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
@@ -1082,7 +1082,7 @@ if (params.get('faces') === 'format') {
 
 - [ ] **Step 8: Run the suite**
 
-Run: `node --test web/tests/`
+Run: `node --test 'web/tests/*.test.mjs'`
 Expected: PASS.
 
 - [ ] **Step 9: Check in the browser**
@@ -1418,7 +1418,7 @@ and the three entries:
 
 - [ ] **Step 8: Check by eye**
 
-1. `node --test web/tests/` → PASS.
+1. `node --test 'web/tests/*.test.mjs'` → PASS.
 2. `preview_start` `{ name: "eli-test" }`, open `http://localhost:5281/tests/compare.html`. No console error.
 3. Screenshot. Grid rows: identical pairs. `trait-doux`, `trait-contour`, `trait-neon`: same eyes, smile cut, mouth
    and teeth, same glow; the extras (none in this page) aside, nothing visibly different.
@@ -1549,7 +1549,7 @@ In `web/js/themes.js`:
 
 - [ ] **Step 4: Tests and a look**
 
-1. `node --test web/tests/` → PASS (`faceview` loads every face of `index.json`).
+1. `node --test 'web/tests/*.test.mjs'` → PASS (`faceview` loads every face of `index.json`).
 2. `preview_start` `{ name: "eli-test" }`, `http://localhost:5281/tests/compare.html`, screenshot the `trait` and
    `chaton` rows. Expected: same eyes, ears, cheeks, whiskers, ω; lips and the kitten's mouth slightly different in
    shape (half ellipses), same size and motion. Then `?faces=format` with Trait and Chaton, and with an outfit on
@@ -1580,7 +1580,7 @@ Place it after the section that lists the themes (find it with `grep -n "Pixel" 
 Every face also exists as a small JSON file in `web/faces/` (`.eliface`): shapes whose sizes and positions are
 formulas of Eli's state (gaze, blink, smile, mouth). Open the page with `?faces=format` to draw every theme from
 its file instead of its code; `web/tests/compare.html` shows both side by side. Pixel, Chat pixel and Matrice match
-their code cell for cell (`node --test web/tests`). The format is described in
+their code cell for cell (`node --test 'web/tests/*.test.mjs'`). The format is described in
 `docs/superpowers/specs/2026-10-02-face-format-design.md`.
 ```
 
