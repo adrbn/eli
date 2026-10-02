@@ -38,7 +38,7 @@
   html, body { height: 100%; margin: 0; }
   body { background: var(--bg); overflow: hidden; -webkit-font-smoothing: antialiased; }
   body.calm { cursor: none; }
-  body.playing { --chrome: 340px; }
+  body.playing { --chrome: 370px; }
   button, input, select { font: inherit; color: inherit; }
   button { cursor: pointer; }
   :focus-visible { outline: 2px solid var(--green); outline-offset: 2px; }
@@ -72,8 +72,8 @@
   .now { display: flex; flex-direction: column; align-items: center; gap: 12px; width: min(640px, 92vw); animation: rise .5s var(--ease); }
   @keyframes rise { from { opacity: 0; transform: translateY(8px); } }
   body.no-lyrics .now-lyrics { display: none; }
-  .now-lyrics { display: grid; gap: 4px; min-height: 3.2em; text-align: center; }
-  .now-line { margin: 0; font-size: clamp(18px, 2.3vw, 26px); font-weight: 600; letter-spacing: -.01em; line-height: 1.3; color: var(--ink); text-shadow: 0 0 22px color-mix(in srgb, var(--ink) 35%, transparent); text-wrap: balance; }
+  .now-lyrics { display: grid; gap: 14px; min-height: 3.2em; margin-top: 18px; text-align: center; }
+  .now-line { margin: 0; font-size: clamp(22px, 3vw, 34px); font-weight: 600; letter-spacing: -.01em; line-height: 1.3; color: var(--ink); text-shadow: 0 0 22px color-mix(in srgb, var(--ink) 35%, transparent); text-wrap: balance; }
   .now-line.in { animation: line .45s var(--ease); }
   @keyframes line { from { opacity: 0; transform: translateY(6px); filter: blur(2px); } }
   .now-next { margin: 0; font-size: clamp(13px, 1.5vw, 16px); color: var(--faint); text-wrap: balance; }
@@ -110,7 +110,7 @@
   body.calm .now-bar { opacity: 0; transform: translateY(8px); pointer-events: none; } /* les paroles restent, la barre part avec le dock */
   /* fenêtre large : la barre se pose juste au-dessus du dock, l'écran et les paroles se centrent dans ce qui reste */
   @media (min-width: 641px) {
-    body.playing:is(:not([data-layout]), [data-layout="window"]) { --chrome: 300px; }
+    body.playing:is(:not([data-layout]), [data-layout="window"]) { --chrome: 380px; }
     body.playing:is(:not([data-layout]), [data-layout="window"]) .stage { padding-bottom: 150px; }
     body.playing.calm:is(:not([data-layout]), [data-layout="window"]) .stage { padding-bottom: 16px; }
     body:is(:not([data-layout]), [data-layout="window"]) .now { animation: none; } /* un transform ici décrocherait la barre fixe */
@@ -305,7 +305,7 @@
   body[data-layout="notch-open"] :is(.caption, .now) { position: absolute; left: 204px; right: 18px; top: calc(var(--top) + 12px); width: auto; max-width: none; }
   body[data-layout="notch-open"] .caption { text-align: left; font-size: 14px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
   body[data-layout="notch-open"] .now { align-items: stretch; gap: 8px; animation: none; }
-  body[data-layout="notch-open"] .now-lyrics { min-height: 0; text-align: left; }
+  body[data-layout="notch-open"] .now-lyrics { min-height: 0; margin-top: 0; text-align: left; }
   body[data-layout="notch-open"] .now-line { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   body[data-layout="notch-open"] .now-next { display: none; }
   body[data-layout="notch-open"] .now-bar { padding: 2px 6px 2px 2px; }

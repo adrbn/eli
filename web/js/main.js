@@ -1114,6 +1114,8 @@ el.chat.addEventListener('submit', (e) => {
   }
   sentAt = sent.length;
   draft = '';
+  el.input.blur(); // sinon :focus-within retient le dock indéfiniment
+  showDock();
   sendChat(raw);
 });
 
