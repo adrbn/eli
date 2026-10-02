@@ -22,6 +22,7 @@ s'assoupit quand tu l'oublies et chante sur ta musique.
 ![Visage sans cloud](https://img.shields.io/badge/visage-sans%20cloud-46ff86?style=flat-square&labelColor=0c0f0c)
 ![Prêt pour l'ESP32](https://img.shields.io/badge/ESP32-protocole%20pr%C3%AAt-46ff86?style=flat-square&labelColor=0c0f0c&logo=espressif&logoColor=46ff86)
 ![Sans build](https://img.shields.io/badge/build-aucun-46ff86?style=flat-square&labelColor=0c0f0c)
+![Release](https://img.shields.io/github/v/release/adrbn/eli?style=flat-square&labelColor=0c0f0c&color=46ff86&label=app%20mac)
 ![Licence MIT](https://img.shields.io/badge/licence-MIT-46ff86?style=flat-square&labelColor=0c0f0c)
 
 [English](README.md) · Français
@@ -62,8 +63,10 @@ visage passe sur un **ESP32** avec un OLED 128×64 : le cerveau ne parle au visa
 - **Parle français ou anglais.** `ELI_LANG=auto` suit la langue de ton navigateur (Réglages → Langue la force) : personnalité, phrases toutes faites, voix, transcription et mot de réveil changent ensemble.
 - **Prononce bien l'anglais.** En français, les mots anglais entourés de `[en]…[/en]` sont dits avec des phonèmes anglais, dans la même voix : les titres de morceaux ne sortent plus à la française.
 - **Voix de chat, en option.** Un filtre plus aigu, qui ne s'applique que quand un visage de chat est à l'écran.
-- **Ta bibliothèque musicale.** Branche Navidrome ou n'importe quel serveur Subsonic, puis dis « Eli, mets du Daft Punk » ou choisis un morceau dans le panneau **Musique** (♪ dans le dock) : recherche, pochettes, lecture aléatoire. Eli s'habille selon le genre (lunettes et palmiers pour le tropical, lasers pour l'électro…).
-- **Karaoké.** Pendant qu'il chante, un lecteur sous le visage montre la ligne en cours (paroles synchronisées via [LRCLIB](https://lrclib.net)), la suivante, et permet de mettre en pause, de te déplacer dans le morceau, et de passer au précédent ou au suivant (au-delà du dernier, un morceau au hasard). Il annonce les morceaux que tu choisis (« Voici Maps, de Maroon 5 »), ce qui couvre aussi les quelques secondes que sa voix isolée met à démarrer.
+- **Ta bibliothèque musicale.** Branche Navidrome ou n'importe quel serveur Subsonic, puis dis « Eli, mets du Daft Punk » ou choisis un morceau dans la **Bibliothèque** (♪ dans le dock, <kbd>M</kbd>) : recherche, pochettes, lecture aléatoire. Eli s'habille selon le genre (lunettes et palmiers pour le tropical, lasers pour l'électro…).
+- **Karaoké.** Pendant qu'il chante, un lecteur sous le visage montre la ligne en cours (paroles synchronisées via [LRCLIB](https://lrclib.net)), la suivante, et permet de mettre en pause, de te déplacer dans le morceau, et de passer au précédent ou au suivant (au-delà du dernier, un morceau au hasard). Active la **lecture continue** (⇄) et il enchaîne au hasard quand un
+  morceau se termine. Il annonce les morceaux que tu choisis (« Voici Maps, de Maroon 5 »), ce qui couvre aussi les quelques secondes que sa voix isolée met à démarrer.
+- **Jamais coincé sur un modèle mort.** Si Groq retire le modèle avec lequel Eli réfléchit, il passe à un modèle encore servi ; Réglages → Cerveau liste ceux que propose ton serveur pour en choisir un autre.
 - **Choisis sa couleur.** Vert, blanc, bleu ou jaune, comme les écrans OLED qu'on trouve dans le commerce, ou n'importe quelle couleur : pratique pour choisir un écran avant de l'acheter.
 - **Une seule voix à la fois.** Ouvre Eli dans un navigateur, l'app Mac et un téléphone : l'écran utilisé en dernier parle, les autres se taisent.
 - **Mode développeur.** Un journal en direct de la page et du serveur, et un diagnostic en un clic (secrets masqués) à coller dans un ticket.
@@ -74,8 +77,8 @@ visage passe sur un **ESP32** avec un OLED 128×64 : le cerveau ne parle au visa
 ## Démarrer
 
 **Sur Mac (Apple Silicon, macOS 13+) :** télécharge le `.dmg` de la [dernière release](https://github.com/adrbn/eli/releases/latest),
-glisse Eli dans Applications, ouvre-le. Rien d'autre à installer : au premier lancement Eli te demande sa voix, un
-cerveau (une clé Groq gratuite, ou ton propre modèle local) et le micro, puis se présente. Les mises à jour s'installent toutes seules.
+glisse Eli dans Applications, ouvre-le. Rien d'autre à installer : au premier lancement Eli te demande sa voix (tu
+les entends toutes tout de suite, seule celle que tu gardes se télécharge), un cerveau (une clé Groq gratuite, ou ton propre modèle local) et le micro, puis se présente. Les mises à jour s'installent toutes seules.
 
 **Depuis les sources**, partout : il te faut [`uv`](https://docs.astral.sh/uv/), une [clé API Groq](https://console.groq.com/keys) (gratuite), et `ffmpeg` si tu veux qu'il chante.
 
@@ -140,35 +143,36 @@ micro de marcher en http simple. Appui long à deux doigts pour changer d'adress
 | Glisser un fichier audio sur la fenêtre | Zone **Parler** : la bouche suit la voix. Zone **Chanter** : il danse, puis chante sur la voix isolée |
 | Bouger la souris | Son regard te suit (c'est le capteur, simulé) |
 | <kbd>←</kbd> / <kbd>→</kbd> | Visage précédent / suivant |
-| <kbd>V</kbd> | Galerie des visages, avec les réglages du « Sur mesure » |
-| <kbd>M</kbd> | Panneau Musique : recherche dans ta bibliothèque, lecture aléatoire, réglages du serveur |
+| <kbd>V</kbd> | Réglages → Visages : la galerie, avec les réglages du « Sur mesure » |
+| <kbd>M</kbd> | La bibliothèque : recherche, lecture aléatoire, un clic pour qu'il chante (le serveur se règle dans Réglages → Musique) |
 | <kbd>P</kbd> | Lecture / pause du morceau |
 | <kbd>↑</kbd> / <kbd>↓</kbd> | Rappelle les messages déjà envoyés, comme dans un terminal |
 | <kbd>Échap</kbd> | Ferme les panneaux et le fait taire (le morceau continue, même s'il télécharge encore) |
 | Clic hors d'un panneau | Le ferme |
 | Ne rien faire pendant 2 min | Il somnole, puis s'endort une minute plus tard ; n'importe quoi le réveille |
 
-Le panneau **Réglages** (en bas à droite) donne la langue, l'avance de la bouche sur le son, le volume, le choix de la
-voix, la voix de chat, la couleur d'Eli, les sous-titres, le regard à la souris, les bruits du sommeil, les tenues
-selon le genre, les notes de musique, le point du matin, « Couper la parole », « Oublier la conversation », son
-carnet de souvenirs, « Faire connaissance » (relance les présentations), « Tout oublier » et le mode développeur.
+Les **Réglages** (en bas à droite) tiennent dans une feuille avec une barre latérale : **Général** (langue, point du
+matin, couper la parole, oublier la conversation), **Voix et écoute** (voix, écoute permanente, voix de chat, volume,
+avance de la bouche), **Visages** (galerie, sur mesure, couleur, sous-titres, regard à la souris, bruits du sommeil),
+**Musique** (serveur, tenues selon le genre, notes de musique, faire chanter ton fichier), **Cerveau** (clé Groq ou
+ton serveur, et le modèle), **Souvenirs** (le carnet, refaire connaissance, tout oublier) et **Développeur**.
 
 ## Ta musique (Navidrome / Subsonic)
 
 Eli joue depuis ta propre bibliothèque via l'[API Subsonic](https://www.subsonic.org/pages/api.jsp) : ça marche avec
 [Navidrome](https://www.navidrome.org), Airsonic, Gonic ou n'importe quel serveur compatible Subsonic.
 
-1. Ouvre le panneau **Musique** (♪ dans le dock, <kbd>M</kbd>, ou demande simplement « Eli, mets du jazz » : la
-   première fois, il l'ouvre pour toi).
+1. Ouvre **Réglages → Musique** (ou appuie sur ♪ dans le dock, ou demande simplement « Eli, mets du jazz » : tant
+   qu'aucun serveur n'est branché, les deux t'amènent sur ce formulaire).
 2. Entre l'adresse du serveur (`http://ton-serveur:4533`), l'utilisateur et le mot de passe. Eli les vérifie avec
    `ping`, puis ne garde qu'un jeton salé (`md5(mot de passe + sel)`, comme le veut le protocole Subsonic) dans
    `local/navidrome.json`, jamais le mot de passe. Le jeton reste sur le serveur : la page récupère les pochettes et
    les morceaux par Eli, pas directement depuis Navidrome.
-3. Cherche par titre, artiste ou album, ou clique sur **Aléatoire** ; clique un morceau et Eli le chante. À la voix,
+3. Ensuite ♪ (ou <kbd>M</kbd>) ouvre la **Bibliothèque** : cherche par titre, artiste ou album, ou clique sur **Au hasard** ; clique un morceau et Eli le chante. À la voix,
    « Eli, mets Get Lucky » ou « mets du Daft Punk » marchent aussi, y compris les duos (« Arijit Singh et Martin
    Garrix »).
 
-La section **Serveur** affiche l'adresse, le compte et la version du serveur, **Tester** mesure l'aller-retour, et
+Dans **Réglages → Musique**, la section **Serveur** affiche l'adresse, le compte et la version du serveur, **Tester** mesure l'aller-retour, et
 **Déconnecter** supprime le jeton. Les morceaux sont diffusés sur ton réseau, donc une liaison lente (un téléphone en
 partage de connexion via Tailscale, par exemple) veut dire quelques secondes avant qu'il démarre.
 
@@ -417,7 +421,7 @@ essayé sur du matériel.** La musique (MP3) n'est pas jouée sur la carte.
 - [x] Mot de réveil : dis « Eli, … » sans les mains (filtre local Vosk, puis tes oreilles confirment ; Réglages → écoute permanente)
 - [x] Émotions : le LLM balise ses phrases ([joie], [colère]…) et les yeux et la bouche les jouent
 - [x] « Eli, mets du Daft Punk » : ta bibliothèque Navidrome/Subsonic ; Eli ouvre le bon formulaire la première fois
-- [x] Panneau Musique : recherche, pochettes, lecture aléatoire, test et déconnexion du serveur
+- [x] Bibliothèque : recherche, pochettes, lecture aléatoire, lecture continue ; test et déconnexion du serveur
 - [x] Tenues selon le genre, avec des fonds qui restent derrière le visage
 - [x] Cerveau local : tout serveur compatible OpenAI (`LLM_URL`, par ex. mlx_lm.server ou Ollama)
 - [x] Version serveur maison (Docker)
@@ -426,6 +430,7 @@ essayé sur du matériel.** La musique (MP3) n'est pas jouée sur la carte.
 - [x] App Mac native (fenêtre, flottant, encoche) et app iPhone
 - [x] Mode développeur : journaux en direct et diagnostic pour les rapports de bug
 - [x] Choisis la couleur d'Eli
+- [ ] Mods de la communauté : partager visages et personnages en un clic, compétences via MCP
 - [ ] Version ESP32 + cou motorisé (servo)
 - [ ] Plusieurs Eli qui se parlent entre eux
 

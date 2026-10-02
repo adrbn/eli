@@ -22,6 +22,7 @@ dozes off when you ignore it, and sings along to your music.
 ![Face: no cloud](https://img.shields.io/badge/face-no%20cloud-46ff86?style=flat-square&labelColor=0c0f0c)
 ![ESP32-ready](https://img.shields.io/badge/ESP32-ready%20protocol-46ff86?style=flat-square&labelColor=0c0f0c&logo=espressif&logoColor=46ff86)
 ![No build step](https://img.shields.io/badge/build%20step-none-46ff86?style=flat-square&labelColor=0c0f0c)
+![Release](https://img.shields.io/github/v/release/adrbn/eli?style=flat-square&labelColor=0c0f0c&color=46ff86&label=mac%20app)
 ![License MIT](https://img.shields.io/badge/license-MIT-46ff86?style=flat-square&labelColor=0c0f0c)
 
 English · [Français](README.fr.md)
@@ -62,9 +63,10 @@ browser for a board is one URL.
 - **Speaks English or French.** `ELI_LANG=auto` follows your browser's language (Settings → Language overrides it): the persona, the fixed sentences, the voice, the transcription and the wake word all switch.
 - **Says English words properly.** In French, Eli's voice is French; English words wrapped in `[en]…[/en]` are spoken with English phonemes in the same voice, so song titles don't come out mangled.
 - **Optional cat voice.** A higher-pitched filter that only applies while a cat face is on screen.
-- **Your music library.** Plug in Navidrome or any Subsonic server, then say "Eli, play some Daft Punk" or pick a song in the **Music** panel (♪ in the dock): search, covers, shuffle. Eli dresses for the genre (shades and palm trees for tropical, lasers for electro…).
-- **Karaoke.** While it sings, a player under the face shows the line being sung (synced lyrics from [LRCLIB](https://lrclib.net)), the next one, and lets you pause, seek, and go to the previous or next song (past the last one, a random pick). He
-  announces the songs you pick ("Here's Maps, by Maroon 5"), which also covers the seconds his isolated voice needs to start.
+- **Your music library.** Plug in Navidrome or any Subsonic server, then say "Eli, play some Daft Punk" or pick a song in the **Library** (♪ in the dock, <kbd>M</kbd>): search, covers, shuffle. Eli dresses for the genre (shades and palm trees for tropical, lasers for electro…).
+- **Karaoke.** While it sings, a player under the face shows the line being sung (synced lyrics from [LRCLIB](https://lrclib.net)), the next one, and lets you pause, seek, and go to the previous or next song (past the last one, a random pick). Turn on **continuous play** (⇄) and he keeps going with random songs
+  when one ends. He announces the songs you pick ("Here's Maps, by Maroon 5"), which also covers the seconds his isolated voice needs to start.
+- **Never stuck on a dead model.** If Groq retires the model Eli thinks with, he switches to one it still serves; Settings → Brain lists what your server offers so you can pick another.
 - **Pick its color.** Green, white, blue or yellow, like the OLED screens you can buy, or any color: handy to choose a screen before ordering one.
 - **One voice at a time.** Open Eli in a browser, the Mac app and a phone: the screen you last used speaks, the others go quiet.
 - **Developer mode.** A live log of the page and the server, and a one-click diagnostic (secrets masked) to paste in an issue.
@@ -73,8 +75,9 @@ browser for a board is one URL.
 ## Quick start
 
 **On a Mac (Apple Silicon, macOS 13+):** download the `.dmg` from the [latest release](https://github.com/adrbn/eli/releases/latest),
-drag Eli into Applications, open it. Nothing else to install: on first launch Eli asks for his voice, a brain (a free
-Groq key, or your own local model) and the mic, then introduces himself. Updates install themselves.
+drag Eli into Applications, open it. Nothing else to install: on first launch Eli asks for his voice (hear them all
+instantly, only the one you keep downloads), a brain (a free Groq key, or your own local model) and the mic, then
+introduces himself. Updates install themselves.
 
 **From source**, anywhere: you need [`uv`](https://docs.astral.sh/uv/), a free [Groq API key](https://console.groq.com/keys), and `ffmpeg` if you want it to sing.
 
@@ -137,33 +140,35 @@ Long-press with two fingers to change the address.
 | Drop an audio file on the window | **Talk** zone: the mouth follows the voice. **Sing** zone: it dances, then sings the isolated vocals |
 | Move the mouse | Its gaze follows you (that's the simulated sensor) |
 | <kbd>←</kbd> / <kbd>→</kbd> | Previous / next face |
-| <kbd>V</kbd> | Face gallery, with the "custom" face's settings |
-| <kbd>M</kbd> | Music panel: search your library, shuffle, server settings |
+| <kbd>V</kbd> | Settings → Faces: the gallery, with the "custom" face's settings |
+| <kbd>M</kbd> | The library: search, shuffle, click to sing (server settings live in Settings → Music) |
 | <kbd>P</kbd> | Play / pause the song |
 | <kbd>↑</kbd> / <kbd>↓</kbd> | Recall previously sent messages, like a shell |
 | <kbd>Esc</kbd> | Closes panels and shuts it up (the song keeps playing, even one still downloading) |
 | Click outside a panel | Closes it |
 | Do nothing for 2 min | It gets drowsy, then falls asleep a minute later; anything wakes it |
 
-The **Settings** panel (bottom right) has the language, mouth lead time, volume, voice choice, the cat voice filter,
-Eli's color, subtitles, mouse gaze, sleep sounds, outfits by genre, music notes, the morning brief, "stop talking", "forget the
-conversation", its memory notebook, "get to know each other" (replays the intro), "forget everything" and developer
-mode.
+**Settings** (bottom right) is one sheet with a sidebar: **General** (language, morning brief, stop talking, forget
+the conversation), **Voice & listening** (voice, always listening, cat voice, volume, mouth lead time), **Faces**
+(gallery, custom face, color, subtitles, mouse gaze, sleep sounds), **Music** (server, outfits by genre, music
+notes, playing your own file), **Brain** (Groq key or your own server, and the model), **Memory** (the notebook,
+replay the intro, forget everything) and **Developer**.
 
 ## Your music (Navidrome / Subsonic)
 
 Eli plays from your own library through the [Subsonic API](https://www.subsonic.org/pages/api.jsp), so
 [Navidrome](https://www.navidrome.org), Airsonic, Gonic or any Subsonic-compatible server works.
 
-1. Open the **Music** panel (♪ in the dock, <kbd>M</kbd>, or just ask "Eli, play some jazz": the first time, he opens
-   it for you).
+1. Open **Settings → Music** (or press ♪ in the dock, or just ask "Eli, play some jazz": until a server is set up,
+   both open this form for you).
 2. Enter the server address (`http://your-server:4533`), user and password. Eli checks them with `ping`, then keeps
    only a salted token (`md5(password + salt)`, as the Subsonic protocol wants) in `local/navidrome.json`, never the
    password. The token stays on the server: the page gets covers and songs through Eli, not from Navidrome.
-3. Search by title, artist or album, or hit **Shuffle**; click a song and Eli sings it. By voice, "Eli, play Get Lucky"
+3. From then on ♪ (or <kbd>M</kbd>) opens the **Library**: search by title, artist or album, or hit **Shuffle**;
+   click a song and Eli sings it. By voice, "Eli, play Get Lucky"
    or "put on some Daft Punk" work too, including duets ("Arijit Singh and Martin Garrix").
 
-The **Server** section shows the address, account and server version, **Test** measures the round trip, and
+In **Settings → Music**, the **Server** section shows the address, account and server version, **Test** measures the round trip, and
 **Disconnect** deletes the token. Songs stream over your network, so a slow link (a phone tethered over Tailscale,
 say) means a few seconds before he starts.
 
@@ -403,7 +408,7 @@ board.
 - [x] Wake word: say "Eli, …" hands-free (local Vosk gate, then your STT confirms; Settings → always listening)
 - [x] Emotions: the LLM tags its sentences ([joie], [colère]…) and the eyes and mouth act them out
 - [x] "Eli, play some Daft Punk": your Navidrome/Subsonic library; Eli opens the right settings form the first time
-- [x] Music panel: search, covers, shuffle, server test and disconnect
+- [x] Library: search, covers, shuffle, continuous play; server test and disconnect
 - [x] Outfits by genre, with backdrops that stay behind the face
 - [x] Local brain: any OpenAI-compatible server (`LLM_URL`, e.g. mlx_lm.server or Ollama)
 - [x] Home-server version (Docker)
@@ -412,6 +417,7 @@ board.
 - [x] Native Mac app (window, floating, notch) and iPhone app
 - [x] Developer mode: live logs and a diagnostic for bug reports
 - [x] Pick Eli's color
+- [ ] Community mods: share faces and characters in one click, skills through MCP
 - [ ] ESP32 build + servo neck
 - [ ] Several Elis talking to each other
 
