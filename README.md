@@ -72,7 +72,11 @@ browser for a board is one URL.
 
 ## Quick start
 
-You need [`uv`](https://docs.astral.sh/uv/), a free [Groq API key](https://console.groq.com/keys), and `ffmpeg` if you want it to sing.
+**On a Mac (Apple Silicon, macOS 13+):** download the `.dmg` from the [latest release](https://github.com/adrbn/eli/releases/latest),
+drag Eli into Applications, open it. Nothing else to install: on first launch Eli asks for his voice, a brain (a free
+Groq key, or your own local model) and the mic, then introduces himself. Updates install themselves.
+
+**From source**, anywhere: you need [`uv`](https://docs.astral.sh/uv/), a free [Groq API key](https://console.groq.com/keys), and `ffmpeg` if you want it to sing.
 
 ```bash
 git clone https://github.com/adrbn/eli && cd eli
@@ -93,7 +97,9 @@ The first run downloads a Piper voice (~60 MB) and the vocal-separation model (~
 **macOS** (`apps/macos`, no Xcode project, needs the Xcode command-line tools):
 
 ```bash
-apps/macos/build.sh          # → apps/macos/build/Eli.app, signed with your Developer ID
+apps/macos/build.sh             # → apps/macos/build/Eli.app running this repo's server, signed with your Developer ID
+BUNDLE=1 apps/macos/build.sh    # self-contained: Python, server and ffmpeg inside the app
+apps/macos/release.sh 0.2.0     # notarized DMG + Sparkle appcast, asks before publishing the GitHub release
 ```
 
 `Eli.app` starts the server if nothing answers on the port (and stops it on quit, only if it started it), finds the

@@ -73,7 +73,11 @@ visage passe sur un **ESP32** avec un OLED 128×64 : le cerveau ne parle au visa
 
 ## Démarrer
 
-Il te faut [`uv`](https://docs.astral.sh/uv/), une [clé API Groq](https://console.groq.com/keys) (gratuite), et `ffmpeg` si tu veux qu'il chante.
+**Sur Mac (Apple Silicon, macOS 13+) :** télécharge le `.dmg` de la [dernière release](https://github.com/adrbn/eli/releases/latest),
+glisse Eli dans Applications, ouvre-le. Rien d'autre à installer : au premier lancement Eli te demande sa voix, un
+cerveau (une clé Groq gratuite, ou ton propre modèle local) et le micro, puis se présente. Les mises à jour s'installent toutes seules.
+
+**Depuis les sources**, partout : il te faut [`uv`](https://docs.astral.sh/uv/), une [clé API Groq](https://console.groq.com/keys) (gratuite), et `ffmpeg` si tu veux qu'il chante.
 
 ```bash
 git clone https://github.com/adrbn/eli && cd eli
@@ -94,7 +98,9 @@ Le premier lancement télécharge une voix Piper (~60 Mo) et le modèle qui isol
 **macOS** (`apps/macos`, sans projet Xcode, il faut les outils en ligne de commande Xcode) :
 
 ```bash
-apps/macos/build.sh          # → apps/macos/build/Eli.app, signée avec ton Developer ID
+apps/macos/build.sh             # → apps/macos/build/Eli.app qui lance le serveur du repo, signée avec ton Developer ID
+BUNDLE=1 apps/macos/build.sh    # autonome : Python, serveur et ffmpeg dans l'app
+apps/macos/release.sh 0.2.0     # DMG notarisé + appcast Sparkle, demande avant de publier la release GitHub
 ```
 
 `Eli.app` lance le serveur si rien ne répond sur le port (et l'arrête en quittant, seulement si c'est elle qui l'a
