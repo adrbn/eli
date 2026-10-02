@@ -2,7 +2,7 @@
 // que le rendu, jamais le comportement. Famille Pixel : un écran OLED 128×64 simulé pixel par pixel, ou une
 // matrice de LED (AMOLED). Famille Trait : du vectoriel pour écran rond. Sur l'ESP32, un thème = une fonction de dessin.
 import { Mask, SCENE, behind, catAnchors, drawExtras, drawScene, pixAnchors } from './looks.js';
-import { formatAnchors, formatLit } from './faceview.js';
+import { drawFace, formatAnchors, formatLit } from './faceview.js';
 
 let G = '#46ff86', DIM = '#0e2a18', LIT = 0xff86ff46; // l'encre (LIT en ABGR, little-endian) : voir setInk
 const OFF = 0xff000000;
@@ -32,6 +32,11 @@ let FACES = {};
 export const useFaces = (faces) => { FACES = faces };
 const grid = (id, code, space = 'wide') => (FACES[id] ? formatLit(FACES[id].face, space) : code);
 const marks = (id, code) => (FACES[id] ? formatAnchors(FACES[id].face, code) : code);
+// Un visage vectoriel en fichier : ses unités sont celles de la boîte w×h ; le repère des extras (xf) reste celui
+// du thème, pour que tenues et notes gardent leur place et leur taille.
+const drawn = (id, w, h, code, fade = 0, xf = [100, 10, 50], anchors = pixAnchors) => (FACES[id]
+  ? vector(w, h, drawFace(FACES[id].face, FACES[id]), fade, xf, formatAnchors(FACES[id].face, anchors, xf))
+  : vector(w, h, code, fade, xf, anchors));
 
 // Distance signée à un rectangle arrondi (négative dedans).
 function sdBox(px, py, bx, by, r) {
@@ -457,13 +462,13 @@ export const THEMES = [
   { id: 'perles', name: 'Perles', family: 'Pixel', screen: 'rect', note: 'OLED, pixels en croix', make: () => oled(32, 4, PLUS, grid('perles', pixLit), marks('perles', pixAnchors)) },
   { id: 'perles-fond', name: 'Perles allumées', family: 'Pixel', screen: 'rect', note: 'LED couleur, fond visible', make: () => dots(() => ({ cols: 28, shape: 'perle', bg: true }), grid('perles-fond', pixLit), marks('perles-fond', pixAnchors)) },
   { id: 'grille', name: 'Sur mesure', family: 'Pixel', screen: 'rect', note: 'densité, forme, fond', make: () => dots(getCustom, grid('grille', pixLit), marks('grille', pixAnchors)) },
-  { id: 'trait', name: 'Trait', family: 'Trait', screen: 'free', note: 'yeux ronds, lèvres', make: () => vector(220, 220, traitClassic) },
-  { id: 'trait-doux', name: 'Doux', family: 'Trait', screen: 'free', note: 'yeux arrondis pleins', make: () => vector(220, 220, traitSoft(false, false)) },
-  { id: 'trait-contour', name: 'Contour', family: 'Trait', screen: 'free', note: 'tout en contours', make: () => vector(220, 220, traitSoft(true, false)) },
-  { id: 'trait-neon', name: 'Néon', family: 'Trait', screen: 'free', note: 'contours lumineux', make: () => vector(220, 220, traitSoft(true, true)) },
+  { id: 'trait', name: 'Trait', family: 'Trait', screen: 'free', note: 'yeux ronds, lèvres', make: () => drawn('trait', 220, 220, traitClassic) },
+  { id: 'trait-doux', name: 'Doux', family: 'Trait', screen: 'free', note: 'yeux arrondis pleins', make: () => drawn('trait-doux', 220, 220, traitSoft(false, false)) },
+  { id: 'trait-contour', name: 'Contour', family: 'Trait', screen: 'free', note: 'tout en contours', make: () => drawn('trait-contour', 220, 220, traitSoft(true, false)) },
+  { id: 'trait-neon', name: 'Néon', family: 'Trait', screen: 'free', note: 'contours lumineux', make: () => drawn('trait-neon', 220, 220, traitSoft(true, true)) },
   { id: 'chat-pixel', name: 'Chat pixel', family: 'Chats', screen: 'rect', note: 'OLED, oreilles qui frémissent', make: () => oled(128, 1, [[0, 0]], grid('chat-pixel', catLit), marks('chat-pixel', catAnchors)) },
   { id: 'chat-perles', name: 'Chat perles', family: 'Chats', screen: 'rect', note: 'LED couleur, fond visible', make: () => dots(() => ({ cols: 52, shape: 'perle', bg: true }), grid('chat-perles', catLit), marks('chat-perles', catAnchors)) },
-  { id: 'chaton', name: 'Chaton', family: 'Chats', screen: 'free', note: 'grands yeux, joues roses', make: () => vector(220, 220, kitten, 0, [120, -10, 62], catAnchors) },
+  { id: 'chaton', name: 'Chaton', family: 'Chats', screen: 'free', note: 'grands yeux, joues roses', make: () => drawn('chaton', 220, 220, kitten, 0, [120, -10, 62], catAnchors) },
   { id: 'matrice', name: 'Matrice', family: 'Autres', screen: 'round', note: 'LED rondes 19×19', make: () => matrice(grid('matrice', matLit, 'square')) },
   { id: 'oscillo', name: 'Oscillo', family: 'Autres', screen: 'free', note: 'trace d’oscilloscope', make: () => vector(264, 198, oscillo, 23, [130, 2, 19.6]) },
 ];

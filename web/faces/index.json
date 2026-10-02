@@ -6,5 +6,10 @@
   "grille": { "face": "pixel" },
   "chat-pixel": { "face": "chat-pixel" },
   "chat-perles": { "face": "chat-pixel" },
-  "matrice": { "face": "matrice" }
+  "matrice": { "face": "matrice" },
+  "trait": { "face": "trait" },
+  "trait-doux": { "face": "trait-doux" },
+  "trait-contour": { "face": "trait-contour" },
+  "trait-neon": { "face": "trait-contour", "glow": true },
+  "chaton": { "face": "chaton" }
 }

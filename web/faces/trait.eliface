@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "id": "trait",
+  "name": "Trait",
+  "author": "adrbn",
+  "license": "MIT",
+  "space": "wide",
+  "frame": [140, -30, 40],
+  "vars": {
+    "ex": "110 + s*40 + gx*12",
+    "ey": "88 + gy*9 - bo*7",
+    "er": "12*sc",
+    "hw": "25 + w*14 - r*14",
+    "up": "o*7 + r*5",
+    "dn": "o*22 + r*8"
+  },
+  "shapes": [
+    { "mirror": true, "group": [
+      { "ellipse": ["ex", "ey", "er", "max(1.6, er*open)"], "when": "!(hap > 0.5)" },
+      { "arc": ["ex", "ey + 6", "er", "1.1*pi", "1.9*pi"], "stroke": 1.75, "when": "hap > 0.5" }
+    ]},
+    { "ellipse": [110, 148, "hw", "max(0.6, up*1.05 - 2.25)"], "stroke": 1.75, "clip": { "inside": { "rect": [110, 98, 80, 50] } } },
+    { "ellipse": [110, 148, "hw", "2.25 + dn*0.975"], "stroke": 1.75, "clip": { "inside": { "rect": [110, 198, 80, 50] } } },
+    { "segment": ["110 - hw*0.5", "150 - up*0.4", "110 + hw*0.5", "150 - up*0.4"], "stroke": 1.75, "level": "min(1, t)", "when": "t > 0.3" }
+  ],
+  "anchors": {
+    "exL": "70 + gx*12.5", "exR": "150 + gx*12.5", "ey": "88 + gy*10 - bo*6.25",
+    "ew": "20*sc", "eh": "24*sc", "crown": "88 + gy*10 - bo*6.25 - 24*sc - 2", "hw": 82
+  }
+}

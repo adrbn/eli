@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "id": "chaton",
+  "name": "Chaton",
+  "author": "adrbn",
+  "license": "MIT",
+  "space": "wide",
+  "frame": [150, -40, 36],
+  "vars": {
+    "cy": "128 - bo*6",
+    "tw": "mod(T + (s > 0 ? 3.1 : 0), 7.3) < 0.18 ? 5 : 0",
+    "ex": "110 + s*30 + gx*8",
+    "ey": "cy + gy*6",
+    "rx": "11*sc",
+    "ry": "max(2, 14*sc*open)",
+    "mw": "6 + w*5 - r*3",
+    "mh": "2 + o*15"
+  },
+  "shapes": [
+    { "ellipse": [110, "cy", 80, 58], "stroke": 1.6 },
+    { "mirror": true, "group": [
+      { "segment": ["110 + s*72", "cy - 24", "110 + s*(62 + tw)", "cy - 84 + tw"], "stroke": 1.6 },
+      { "segment": ["110 + s*(62 + tw)", "cy - 84 + tw", "110 + s*22", "cy - 55"], "stroke": 1.6 },
+      { "triangle": ["110 + s*63", "cy - 36", "110 + s*(60 + tw)", "cy - 70 + tw", "110 + s*36", "cy - 52"], "level": 0.3 },
+      { "ellipse": ["110 + s*50", "cy + 18", 12, 7], "level": 0.3 },
+      { "ellipse": ["ex", "ey", "rx", "ry"], "when": "!(hap > 0.5)" },
+      { "cut": { "ellipse": ["ex + clamp(gx, -1, 1)*4.5", "ey - ry*0.15 + clamp(gy, -1, 1)*5", 4.2, 4.2] }, "when": "!(hap > 0.5) && ry > 7" },
+      { "arc": ["ex", "ey + 6", "rx", "1.15*pi", "1.85*pi"], "stroke": 1.6, "when": "hap > 0.5" },
+      { "segment": ["110 + s*62", "cy + 10", "110 + s*100", "cy + 2"], "stroke": 1 },
+      { "segment": ["110 + s*62", "cy + 19", "110 + s*100", "cy + 18"], "stroke": 1 }
+    ]},
+    { "rect": [110, "cy + 16", 5, 3], "radius": 3 },
+    { "arc": [104.5, "cy + 22", 5.5, 0.15, "pi - 0.1"], "stroke": 1.2 },
+    { "arc": [115.5, "cy + 22", 5.5, 0.1, "pi - 0.15"], "stroke": 1.2 },
+    { "ellipse": [110, "cy + 28", "mw", "mh"], "when": "o > 0.08",
+      "clip": { "inside": { "rect": [110, "cy + 28 + mh/2", "mw + 2", "mh/2"] } } }
+  ],
+  "anchors": {
+    "exL": "80 + gx*7.2", "exR": "140 + gx*7.2", "ey": "128 + gy*6",
+    "ew": "14.4*sc", "eh": "14.4*sc", "crown": "86 - bo*4.8", "hw": 76.8
+  }
+}

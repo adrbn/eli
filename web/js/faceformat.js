@@ -179,11 +179,12 @@ export function compileFace(text) {
 
   return {
     id: doc.id, name: typeof doc.name === 'string' ? doc.name : doc.id, space, xf, frame,
-    // The anchors are written in author units; looks.js wants them in the wide space.
-    anchors(f, minH = 0.55 / 64) {
+    // The anchors are written in author units; looks.js wants them in the 2:1 space of the display, which `into`
+    // maps to author units like `frame` does (the vector display keeps its own, so outfits keep their size).
+    anchors(f, into = xf ?? [1, 0, 0]) {
       if (!anchors || space === 'square') return null;
-      const env = envOf(f, minH, 1), a = Object.fromEntries(ANCHORS.map((k) => [k, anchors[k](env)]));
-      const [k, ox, oy] = xf ?? [1, 0, 0];
+      const env = envOf(f, 0.55 / 64, 1), a = Object.fromEntries(ANCHORS.map((k) => [k, anchors[k](env)]));
+      const [k, ox, oy] = into;
       return { ex: [(a.exL - ox) / k, (a.exR - ox) / k], ey: (a.ey - oy) / k, ew: a.ew / k, eh: a.eh / k, crown: (a.crown - oy) / k, hw: a.hw / k };
     },
   };

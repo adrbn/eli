@@ -82,6 +82,8 @@ test('shift moves the sample point, frame maps the wide space to author units', 
 test('anchors come back in the wide space', () => {
   const a = face({ frame: [100, 10, 50], shapes: [], anchors: { exL: 70, exR: 150, ey: 90, ew: 20, eh: 24, crown: 60, hw: 82 } }).anchors(state());
   assert.deepEqual(a, { ex: [0.6, 1.4], ey: 0.4, ew: 0.2, eh: 0.24, crown: 0.1, hw: 0.82 });
+  const b = face({ frame: [100, 10, 50], shapes: [], anchors: { exL: 70, exR: 150, ey: 90, ew: 20, eh: 24, crown: 60, hw: 82 } }).anchors(state(), [200, 10, 50]);
+  assert.deepEqual(b.ex, [0.3, 0.7]);
   assert.equal(face({ shapes: [] }).anchors(state()), null);
 });
 

@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Faces: code and file</title>
+<style>
+  body { margin: 0; padding: 16px; background: #050605; color: #9aa59a; font: 13px ui-monospace, monospace; }
+  .row { display: grid; grid-template-columns: 120px 1fr 1fr; gap: 12px; align-items: center; margin-bottom: 12px; }
+  canvas { width: 100%; aspect-ratio: 2; background: #000; }
+</style>
+</head>
+<body>
+<p>Left: the code face. Right: its .eliface file. Same state, driven by time.</p>
+<div id="rows"></div>
+<script type="module">
+  import { THEMES, useFaces } from '../js/themes.js';
+  import { loadFaces } from '../js/faceview.js';
+
+  const faces = await loadFaces('../faces/');
+  const ids = Object.keys(faces);
+  const code = ids.map((id) => THEMES.find((t) => t.id === id).make());
+  useFaces(faces);
+  const file = ids.map((id) => THEMES.find((t) => t.id === id).make());
+  const canvases = ids.map((id) => {
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.append(Object.assign(document.createElement('span'), { textContent: id }));
+    const pair = [0, 1].map(() => row.appendChild(Object.assign(document.createElement('canvas'), { width: 480, height: 240 })));
+    document.getElementById('rows').append(row);
+    return pair;
+  });
+  const wave = (T, k) => Math.sin(T * k);
+  let last = performance.now();
+  const frame = (now) => {
+    const T = now / 1000, dt = (now - last) / 1000;
+    last = now;
+    const f = {
+      T, notes: [], look: null,
+      eyes: { gx: wave(T, 0.7), gy: 0.6 * wave(T, 0.5), open: Math.abs(wave(T, 0.4)) < 0.05 ? 0.1 : 1, hap: Math.max(0, wave(T, 0.23)),
+        sc: 1 + 0.08 * wave(T, 0.9), bo: 0.5 * wave(T, 1.3), ang: Math.max(-1, Math.min(1, 1.5 * wave(T, 0.17))) },
+      mouth: { o: (wave(T, 3) + 1) / 2, w: (wave(T, 0.6) + 1) / 2, r: (wave(T, 0.35) + 1) / 2, t: wave(T, 0.8) > 0.3 ? 1 : 0 },
+    };
+    canvases.forEach(([a, b], k) => {
+      code[k](a.getContext('2d'), a.width, a.height, f, dt);
+      file[k](b.getContext('2d'), b.width, b.height, f, dt);
+    });
+    requestAnimationFrame(frame);
+  };
+  requestAnimationFrame(frame);
+</script>
+</body>
+</html>

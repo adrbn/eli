@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "id": "trait-contour",
+  "name": "Contour",
+  "author": "adrbn",
+  "license": "MIT",
+  "space": "wide",
+  "frame": [140, -30, 40],
+  "vars": {
+    "ex": "110 + s*42 + gx*12",
+    "ey": "86 + gy*9 - bo*7",
+    "ew": "34*sc",
+    "eh": "max(3, 40*sc*open)",
+    "mw": "30 + w*30 - r*18",
+    "mh": "max(3, 5 + o*26 + r*6)"
+  },
+  "shapes": [
+    { "mirror": true, "group": [
+      { "rect": ["ex", "ey", "ew/2", "eh/2"], "radius": "min(ew, eh)*0.42", "stroke": 1.6, "when": "!(hap > 0.5)" },
+      { "arc": ["ex", "ey + 8", "ew*0.5", "1.12*pi", "1.88*pi"], "stroke": 1.6, "when": "hap > 0.5" }
+    ]},
+    { "rect": [110, 152, "mw/2", "mh/2"], "radius": "min(mw, mh)/2", "stroke": 1.6 },
+    { "segment": ["110 - mw*0.32", 152, "110 + mw*0.32", 152], "stroke": 1.6, "when": "t > 0.4 && mh > 10" }
+  ],
+  "anchors": {
+    "exL": "70 + gx*12.5", "exR": "150 + gx*12.5", "ey": "88 + gy*10 - bo*6.25",
+    "ew": "20*sc", "eh": "24*sc", "crown": "88 + gy*10 - bo*6.25 - 24*sc - 2", "hw": 82
+  }
+}
