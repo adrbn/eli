@@ -302,25 +302,62 @@
     .bezel[data-screen="free"] #screen { width: 100vw; height: max(160px, calc(100dvh - var(--chrome) - 30px)); }
     .devlog { bottom: calc(150px + env(safe-area-inset-bottom)); }
   }
-  /* --- l'accueil du premier lancement : le visage reste visible derrière, muet ------------------ */
-  .onboard { position: fixed; inset: 0; z-index: 8; display: grid; place-items: center; padding: 16px; background: #050605b8; backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
-  .ob-card { display: grid; gap: 14px; width: min(480px, 100%); max-height: calc(100dvh - 32px); overflow-y: auto; padding: 22px 22px 18px; background: var(--panel); border: 1px solid var(--line-strong); border-radius: 20px; box-shadow: 0 30px 90px #000d; animation: rise .5s var(--ease); }
-  .ob-card [data-step] { display: grid; gap: 12px; animation: rise .35s var(--ease); }
-  .ob-card h2 { margin: 0; font-size: 21px; font-weight: 600; letter-spacing: -.015em; }
-  .ob-slot > .music-form:not(.item) { padding: 14px; }
-  .ob-slot > .music-form:not(.item) + .music-form { border-top: 1px solid var(--line); }
-  .ob-card [data-step] > .btn { justify-self: start; }
-  .ob-card .btn:disabled { opacity: .45; cursor: default; }
-  .ob-ok { color: var(--green); }
-  .ob-dots { display: flex; gap: 6px; }
-  .ob-dots i { width: 22px; height: 4px; border-radius: 2px; background: var(--line-strong); transition: background .3s; }
-  .ob-dots i.on { background: var(--green); box-shadow: 0 0 8px color-mix(in srgb, var(--green) 50%, transparent); }
-  .ob-card footer { position: sticky; bottom: -18px; display: flex; align-items: center; gap: 12px; margin: 4px -22px -18px; padding: 12px 22px 18px; background: linear-gradient(transparent, var(--panel) 30%); }
-  .ob-card footer .hint { flex: 1; font-size: 12px; }
-  #ob-next { margin-left: auto; }
+  /* --- le premier lancement : Eli reste là, ses questions en sous-titres, les réponses dessous -------- */
+  body.onboarding { --chrome: 430px; cursor: auto; }
+  body.onboarding .stage { gap: 26px; padding-bottom: 28px; justify-content: safe center; overflow-y: auto; } /* une étape dépliée défile, le visage n'est jamais rogné */
+  body.onboarding :is(.dock, .caption, .now) { display: none !important; }
+  .onboard { display: grid; justify-items: center; gap: 18px; width: min(640px, 100%); text-align: center; }
+  .ob-pips { display: flex; gap: 7px; margin: 0; padding: 0; list-style: none; }
+  .ob-pips li { width: 7px; height: 7px; border-radius: 1.5px; background: var(--line-strong); transition: background .3s, box-shadow .3s; }
+  .ob-pips li.on { background: var(--green); box-shadow: 0 0 8px color-mix(in srgb, var(--green) 55%, transparent); }
+  .ob-step { display: grid; justify-items: center; gap: 14px; width: 100%; animation: step .28s var(--ease); }
+  @keyframes step { from { opacity: 0; transform: translateY(6px); } }
+  .ob-say { margin: 0; max-width: 30ch; font-size: 1.5rem; font-weight: 600; line-height: 1.25; letter-spacing: -.018em; text-wrap: balance; }
+  .ob-note { margin: -4px 0 0; max-width: 54ch; font-size: .875rem; line-height: 1.5; color: var(--muted); text-wrap: pretty; }
+  .ob-note kbd { font-size: .75rem; }
+  .ob-seg { display: inline-flex; padding: 3px; background: #ffffff08; border: 1px solid var(--line); border-radius: 10px; }
+  .ob-seg button { padding: 5px 14px; background: none; border: 0; border-radius: 7px; font-size: .8125rem; color: var(--muted); transition: background .15s, color .15s; }
+  .ob-seg button[aria-checked="true"] { background: #ffffff14; color: var(--text); }
+  .ob-voices { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
+  .ob-voice { display: grid; gap: 2px; min-width: 148px; padding: 10px 14px 11px; text-align: left; background: var(--group); border: 1px solid var(--line-strong); border-radius: 12px; transition: background .15s, border-color .15s, transform .1s; }
+  .ob-voice:hover { background: #121612; }
+  .ob-voice:active { transform: scale(.97); }
+  .ob-voice b { font-size: .875rem; font-weight: 500; }
+  .ob-voice small { font-size: .75rem; color: var(--muted); }
+  .ob-voice[aria-checked="true"] { background: color-mix(in srgb, var(--green) 8%, var(--group)); border-color: color-mix(in srgb, var(--green) 55%, #000); }
+  .ob-voice[aria-checked="true"] b { color: var(--green); }
+  .ob-voice.busy small::after { content: " ▪▪▪"; color: var(--green); animation: blip 1s steps(2) infinite; }
+  .ob-howto { display: grid; gap: 10px; width: min(470px, 100%); margin: 2px 0 0; padding: 0; list-style: none; counter-reset: how; text-align: left; }
+  .ob-howto li { display: flex; align-items: center; gap: 12px; min-height: 36px; font-size: .875rem; counter-increment: how; }
+  .ob-howto li::before { content: counter(how); flex: none; display: grid; place-items: center; width: 24px; height: 24px; border: 1px solid color-mix(in srgb, var(--green) 40%, #000); border-radius: 7px; font: 600 .75rem var(--mono); color: var(--green); }
+  .ob-howto .btn { flex: none; color: var(--text); text-decoration: none; }
+  .ob-howto span { color: var(--text); }
+  .ob-row { display: flex; flex: 1; gap: 8px; margin: 0; }
+  .onboard input:not(.switch) { min-width: 0; padding: 9px 11px; background: #ffffff08; border: 1px solid var(--line-strong); border-radius: 9px; outline: none; font-size: .8125rem; }
+  .onboard input:not(.switch):focus { border-color: var(--green); }
+  .ob-row input { flex: 1; }
+  .ob-more { width: min(470px, 100%); }
+  .ob-more summary { display: inline-block; font-size: .8125rem; color: var(--muted); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; cursor: pointer; list-style: none; }
+  .ob-more summary::-webkit-details-marker { display: none; }
+  .ob-more summary:hover { color: var(--text); }
+  .ob-form { display: grid; gap: 8px; margin-top: 12px; text-align: left; }
+  .ob-form .btn { justify-self: start; }
+  .ob-form small { font-size: .75rem; color: var(--muted); }
+  .ob-out { min-height: 1.25em; font-size: .8125rem; color: var(--muted); }
+  .ob-out.ok { color: var(--green); }
+  .ob-out.err { color: var(--danger); }
+  .ob-out:empty { display: none; }
+  .ob-cta { padding: 10px 18px; font-size: .875rem; }
+  .ob-toggle { display: flex; align-items: center; gap: 14px; padding: 11px 14px; text-align: left; background: var(--group); border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
+  .ob-toggle span { display: grid; gap: 2px; font-size: .875rem; }
+  .ob-toggle small { font-size: .75rem; color: var(--muted); }
+  .ob-nav { display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 40px; }
+  .ob-link { padding: 8px 4px; background: none; border: 0; font-size: .8125rem; color: var(--muted); }
+  .ob-link:hover { color: var(--text); }
+  .btn:disabled { opacity: .45; cursor: default; }
   @media (prefers-reduced-motion: reduce) {
     .dock, .toast, .bezel, .caption, .stage, #screen { transition: none; }
-    .zzz span, .eq i, .now, .now-line.in, .panel, .ob-card, .ob-card [data-step] { animation: none !important; }
+    .zzz span, .eq i, .now, .now-line.in, .panel, .ob-step { animation: none !important; }
   }
 </style>
 </head>
@@ -331,6 +368,73 @@
     <div class="zzz" aria-hidden="true"><span>z</span><span>z</span><span>Z</span></div>
   </div>
   <p class="caption" id="caption" aria-live="polite"></p>
+  <!-- Le premier lancement : Eli pose ses questions en sous-titres, on y répond juste en dessous (onboarding.js) -->
+  <section class="onboard" id="onboard" hidden aria-label="Bienvenue">
+    <ol class="ob-pips" aria-hidden="true"><li></li><li></li><li></li><li></li></ol>
+
+    <div class="ob-step" data-step="voice">
+      <h2 class="ob-say">Salut, moi c’est Eli. Tu me donnes quelle voix ?</h2>
+      <div class="ob-seg" role="radiogroup" aria-label="Langue">
+        <button type="button" role="radio" data-lang="fr" lang="fr">Français</button>
+        <button type="button" role="radio" data-lang="en" lang="en">English</button>
+      </div>
+      <div class="ob-voices" id="ob-voices" role="radiogroup" aria-label="Voix"></div>
+      <p class="ob-note" id="ob-voice-note">Clique sur une voix pour l’entendre. Elles tournent toutes sur ton Mac.</p>
+    </div>
+
+    <div class="ob-step" data-step="brain" hidden>
+      <h2 class="ob-say">Pour t’entendre et te répondre, il me faut un cerveau.</h2>
+      <p class="ob-note">Le plus simple : une clé Groq. C’est gratuit et ça prend une minute.</p>
+      <ol class="ob-howto">
+        <li><a class="btn" href="https://console.groq.com/keys" target="_blank" rel="noopener">Ouvrir Groq</a><span>et connecte-toi (un compte Google suffit)</span></li>
+        <li><span>Clique sur <b>Create API Key</b>, puis copie la clé</span></li>
+        <li><form class="ob-row" id="ob-key" autocomplete="off">
+          <input name="groq" type="password" placeholder="Colle-la ici (gsk_…)" spellcheck="false" required aria-label="Clé Groq">
+          <button class="btn go" type="submit">Valider</button>
+        </form></li>
+      </ol>
+      <output class="ob-out" id="ob-key-out"></output>
+      <details class="ob-more">
+        <summary>J’ai mon propre modèle (Ollama, LM Studio…)</summary>
+        <form class="ob-form" id="ob-llm" autocomplete="off">
+          <input name="llm_url" type="url" placeholder="http://127.0.0.1:11434/v1" spellcheck="false" required aria-label="Adresse du serveur">
+          <input name="llm_model" placeholder="Modèle (vide : le premier proposé)" spellcheck="false" aria-label="Modèle">
+          <input name="llm_key" type="password" placeholder="Clé, si le serveur en demande une" aria-label="Clé du serveur">
+          <button class="btn go" type="submit">Brancher</button>
+          <small>La clé Groq reste utile pour qu’il t’entende ; sans elle, écris-lui.</small>
+        </form>
+      </details>
+    </div>
+
+    <div class="ob-step" data-step="music" hidden>
+      <h2 class="ob-say">Et si je chantais ta musique ?</h2>
+      <p class="ob-note">Glisse un morceau sur ma fenêtre, quand tu veux : je le chante. Avec un serveur Navidrome, je pioche directement dans ta bibliothèque.</p>
+      <details class="ob-more">
+        <summary>J’ai un serveur Navidrome</summary>
+        <form class="ob-form" id="ob-music">
+          <input name="url" type="url" placeholder="http://serveur:4533" required autocomplete="url" aria-label="Adresse du serveur">
+          <input name="user" placeholder="Utilisateur" required autocomplete="username" aria-label="Utilisateur">
+          <input name="password" type="password" placeholder="Mot de passe" required autocomplete="current-password" aria-label="Mot de passe">
+          <button class="btn go" type="submit">Connecter</button>
+          <small>Le mot de passe n’est pas gardé, seulement un jeton.</small>
+        </form>
+      </details>
+      <output class="ob-out" id="ob-music-out"></output>
+    </div>
+
+    <div class="ob-step" data-step="mic" hidden>
+      <h2 class="ob-say">Dernière chose : laisse-moi t’entendre.</h2>
+      <p class="ob-note">Ton Mac va te demander l’accès au micro. Ensuite, maintiens <kbd>Espace</kbd> pour me parler.</p>
+      <button class="btn go ob-cta" id="ob-mic" type="button">Autoriser le micro</button>
+      <output class="ob-out" id="ob-mic-out"></output>
+      <label class="ob-toggle" id="ob-hot-row" hidden><input class="switch" id="ob-hot" type="checkbox"><span><b>Écoute permanente</b><small>Dis « Eli, … » sans rien toucher.</small></span></label>
+    </div>
+
+    <nav class="ob-nav">
+      <button class="ob-link" id="ob-back" type="button">Retour</button>
+      <button class="btn" id="ob-next" type="button">Plus tard</button>
+    </nav>
+  </section>
   <section class="now" id="now" hidden aria-label="Morceau en cours">
     <div class="now-lyrics" aria-live="polite">
       <p class="now-line" id="now-line"></p>
@@ -564,40 +668,6 @@
       </div>
       <input id="file" type="file" accept="audio/*,video/mp4,.m4a,.flac,.opus,.caf" hidden>
     </div>
-  </div>
-</section>
-
-<section class="onboard" id="onboard" hidden aria-label="Bienvenue">
-  <div class="ob-card">
-    <div class="ob-dots" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-    <div data-step="voice">
-      <h2>Salut. Avant qu’il te parle…</h2>
-      <p class="hint">Choisis sa langue et sa voix. Tout reste sur ta machine.</p>
-      <div class="group ob-slot"></div>
-      <button class="btn" id="ob-listen" type="button" disabled>Écouter</button>
-    </div>
-    <div data-step="brain" hidden>
-      <h2>Son cerveau</h2>
-      <p class="hint">Une clé Groq gratuite suffit pour qu’il t’entende et te réponde. Ou branche ton propre modèle.</p>
-      <div class="group ob-slot"></div>
-    </div>
-    <div data-step="music" hidden>
-      <h2>Ta musique</h2>
-      <p class="hint">Avec un serveur Navidrome (ou Subsonic), il chante ce que tu lui demandes. Sans, il chante les fichiers que tu glisses sur la fenêtre.</p>
-      <div class="group ob-slot"></div>
-      <p class="hint ob-ok" id="ob-music-ok" hidden>Bibliothèque branchée.</p>
-    </div>
-    <div data-step="mic" hidden>
-      <h2>Lui parler</h2>
-      <p class="hint">Maintiens <kbd>Espace</kbd> ou le bouton micro pour parler, ou écris-lui en bas.</p>
-      <div class="group ob-slot"></div>
-      <div class="row"><button class="btn" id="ob-mic" type="button">Autoriser le micro</button><output class="ping" id="ob-mic-out"></output></div>
-    </div>
-    <footer>
-      <button class="btn" id="ob-back" type="button">Retour</button>
-      <small class="hint" id="ob-hint"></small>
-      <button class="btn go" id="ob-next" type="button">Continuer</button>
-    </footer>
   </div>
 </section>
 

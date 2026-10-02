@@ -464,7 +464,12 @@ function bindSettings() {
 const library = initLibrary({ post, note, report, stopAll, rendered: (m) => onboarding.music(m) });
 const renderMusic = (m) => library.render(m);
 const onboarding = initOnboarding({
+  post,
   speak: (text) => post('/brain/speak', { text }).then(({ turn }) => { minTurn = Math.max(minTurn, turn) }, report),
+  react: (mood) => { face.mood = mood; moodUntil = performance.now() + 1800 },
+  setLang: (l) => { const sel = $('#s-lang'); sel.value = l; sel.dispatchEvent(new Event('change')) },
+  setHotword: (on) => { const hot = $('#s-hotword'); hot.checked = on; hot.dispatchEvent(new Event('change')) },
+  music: (m) => library.render(m),
   done: () => {
     store.set('onboarded', true);
     maybeIntro();
@@ -825,10 +830,12 @@ function swayPhase(tr, at) {
   return (Math.PI / 2) * (i + clamp((at - a) / (b - a), 0, 1));
 }
 
+const ONBOARD_GAZE = { x: 0, y: 0.6 };
 // Ce que le visage perçoit à cet instant : ce qu'il dit ou chante, où regarder, l'humeur de fond.
 function sense(now) {
   const h = player.heard(), item = player.ready ? player.at(h) : null;
-  const s = { mode: serverMode, mouth: null, gaze: serverGaze || (settings.mouse ? mouseGaze : null), micLevel: mic.level };
+  const gaze = serverGaze || (settings.mouse ? mouseGaze : null) || (onboarding.open ? ONBOARD_GAZE : null); // l'accueil : il regarde tes réponses
+  const s = { mode: serverMode, mouth: null, gaze, micLevel: mic.level };
   if (lastItem && item !== lastItem) s.clipEnd = true;
   if (item?.meta.mood) { // l'émotion de la phrase entendue, qui s'attarde un peu après
     face.mood = item.meta.mood;
