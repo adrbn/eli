@@ -97,7 +97,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
 
     func makeWindow() -> NSWindow {
-        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 960, height: 720),
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 960, height: 480),  // 2:1, the OLED's format: the face fills it
                               styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
                               backing: .buffered, defer: false)
         window.title = "Eli"
@@ -105,11 +105,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         window.titleVisibility = .hidden
         window.backgroundColor = .black
         window.appearance = NSAppearance(named: .darkAqua)
-        window.contentMinSize = NSSize(width: 480, height: 360)
+        window.contentMinSize = NSSize(width: 480, height: 240)
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.center()
-        window.setFrameAutosaveName("Eli")  // remembers size and position
+        window.setFrameAutosaveName("Eli.wide")  // remembers size and position (renamed when the default format changed)
         // The web view fills the window, title bar included, and swallows the clicks: a bar-high strip on top moves it.
         if let content = window.contentView {
             let grip = DragStrip(frame: NSRect(x: 0, y: content.bounds.height - 30, width: content.bounds.width, height: 30))

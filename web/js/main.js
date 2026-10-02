@@ -81,7 +81,7 @@ const el = {
   mic: $('#btn-mic'), chat: $('#chat'), input: $('#chat-input'), status: $('#status'), info: $('#info'),
   themes: $('#pane-faces'), settings: $('#panel-settings'), music: $('#pane-music'), library: $('#panel-library'), groups: $('#theme-groups'), custom: $('#custom'),
   drop: $('#drop'), wake: $('#wake'), file: $('#file'), voice: $('#s-voice'), voiceHint: $('#s-voice-hint'),
-  now: $('#now'), nowLine: $('#now-line'), nowNext: $('#now-next'), nowTitle: $('#now-title'), nowPlay: $('#now-play'),
+  now: $('#now'), nowLine: $('#now-line'), nowNext: $('#now-next'), nowTitle: $('#now-title'), playingTag: $('#playing-tag'), nowPlay: $('#now-play'),
   nowBar: $('.now-bar'), nowIcon: $('#now-icon'), nowSeek: $('#now-seek'), nowTime: $('#now-time'), nowDur: $('#now-dur'), devlog: $('#devlog'),
 };
 
@@ -631,6 +631,7 @@ function renderTitle(m, ly) {
   span.textContent = ly?.artist ? ` · ${ly.artist}` : '';
   el.nowTitle.replaceChildren(b, span);
   el.nowTitle.title = el.nowTitle.textContent;
+  el.playingTag.textContent = el.nowTitle.textContent;
   el.nowLine.parentElement.hidden = !ly?.lines?.length;
   lyricAt = -2;
 }

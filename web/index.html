@@ -291,11 +291,25 @@
   .wake { position: fixed; inset: 0; display: flex; align-items: flex-end; justify-content: center; padding-bottom: 96px; background: transparent; border: 0; z-index: 7; }
   .wake span { padding: 12px 20px; background: var(--green); color: #000; font-weight: 600; border-radius: 999px; box-shadow: 0 10px 40px color-mix(in srgb, var(--green) 25%, transparent); }
   .eq { display: none; }
+  /* ce qu'il chante, sans le dire : à peine lisible dans un coin, le temps que le dock (qui l'affiche en grand) est parti */
+  .playing-tag { position: fixed; right: 14px; bottom: 10px; max-width: 40vw; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; color: var(--faint); opacity: 0; transition: opacity .6s; pointer-events: none; }
+  body.playing.calm:is(:not([data-layout]), [data-layout="window"]) .playing-tag { opacity: .6; }
 
   /* --- dans une app (Mac, iPhone) : la fenêtre est déjà l'appareil, pas de cadre dans le cadre ---- */
   body.app .bezel { padding: 0; background: none; box-shadow: none; }
   body.app #screen { border-radius: 10px; }
-  body.app-mac[data-layout="window"] .stage { padding-block: 40px; } /* les feux de la fenêtre, et autant en bas : centré dans la fenêtre */
+  /* la fenêtre Mac, c'est son écran : le visage la remplit bord à bord comme sur l'OLED, et ne recule
+     que le temps d'un sous-titre ou d'une ligne à chanter ; le dock passe par-dessus quand on bouge */
+  body.app-mac[data-layout="window"] { --z: 0px; --zd: 0px; }
+  body.app-mac.captioned[data-layout="window"] { --z: 90px; }
+  body.app-mac.sung[data-layout="window"] { --z: 150px; }
+  body.app-mac[data-layout="window"]:not(.calm) { --zd: 76px; } /* le dock est là : il se pose au-dessus, sans lui cacher la bouche */
+  body.app-mac[data-layout="window"] .stage { padding: 0 0 var(--zd); gap: 12px; }
+  body.app-mac[data-layout="window"]:not(.onboarding) .stage::before { display: none; }
+  body.app-mac[data-layout="window"] #screen { width: calc(min(100vw, (100dvh - var(--z) - var(--zd)) * var(--ratio)) * .9); min-width: 0; border-radius: 0; } /* .9 : un peu d'air, quand il bouge il ne frôle pas le bord */
+  body.app-mac[data-layout="window"]:not(.captioned) .caption { display: none; }
+  body.app-mac[data-layout="window"] .now { margin-top: 0; }
+  body.app-mac[data-layout="window"]:not(.sung) .now { display: none; }
 
   /* --- le visage seul : ?bare=1, ou le widget flottant de l'app Mac --------------------------- */
   body:is(.bare, [data-layout="widget"]) .stage { padding: 0; }
@@ -436,6 +450,7 @@
     <div class="zzz" aria-hidden="true"><span>z</span><span>z</span><span>Z</span></div>
   </div>
   <p class="caption" id="caption" aria-live="polite"></p>
+  <p class="playing-tag" id="playing-tag" aria-hidden="true"></p>
   <!-- Le premier lancement : Eli pose ses questions en sous-titres, on y répond juste en dessous (onboarding.js) -->
   <section class="onboard" id="onboard" hidden aria-label="Bienvenue">
     <ol class="ob-pips" aria-hidden="true"><li></li><li></li><li></li><li></li></ol>
