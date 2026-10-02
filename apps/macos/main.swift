@@ -101,6 +101,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         window.delegate = self
         window.center()
         window.setFrameAutosaveName("Eli")  // remembers size and position
+        // The web view fills the window, title bar included, and swallows the clicks: a bar-high strip on top moves it.
+        if let content = window.contentView {
+            let grip = DragStrip(frame: NSRect(x: 0, y: content.bounds.height - 30, width: content.bounds.width, height: 30))
+            grip.autoresizingMask = [.width, .minYMargin]
+            content.addSubview(grip)
+        }
         return window
     }
 
@@ -374,6 +380,15 @@ extension NSView {
         view.frame = bounds
         view.autoresizingMask = [.width, .height]
         addSubview(view, positioned: .below, relativeTo: nil)
+    }
+}
+
+/// The title bar's job over the web view: drag to move, double-click to zoom (as the system setting says).
+private final class DragStrip: NSView {
+    override func mouseDown(with event: NSEvent) {
+        guard event.clickCount == 2 else { return window?.performDrag(with: event) ?? () }
+        let action = UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") ?? "Maximize"
+        if action == "Minimize" { window?.performMiniaturize(nil) } else if action != "None" { window?.performZoom(nil) }
     }
 }
 
