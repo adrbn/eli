@@ -5,7 +5,7 @@ import { t } from './i18n.js';
 const $ = (s) => document.querySelector(s);
 const clock = (s) => (s ? `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}` : '');
 
-export function initLibrary({ post, note, report, stopAll }) {
+export function initLibrary({ post, note, report, stopAll, rendered = () => {} }) {
   const form = $('#m-connect'), list = $('#m-songs'), q = $('#m-q'), out = $('#m-ping');
   let status = { configured: false }, timer = 0, asked = 0;
 
@@ -55,6 +55,7 @@ export function initLibrary({ post, note, report, stopAll }) {
 
   function render(m) {
     status = m;
+    rendered(m);
     form.hidden = m.configured;
     $('#m-library').hidden = !m.configured;
     $('#m-server').hidden = !m.configured;

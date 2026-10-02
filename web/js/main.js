@@ -9,6 +9,7 @@ import { GREEN, LOOKS, Notes, mixColor } from './looks.js';
 import { THEMES, getCustom, setCustom, setInk, themeById } from './themes.js';
 import * as devlog from './devlog.js';
 import { initLibrary } from './library.js';
+import { initOnboarding } from './onboarding.js';
 import { lang, pickLang, setLang, t, translateDom } from './i18n.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -138,6 +139,7 @@ function renderInfo() {
   const llm = $('#s-llm');
   if (llm && info.llm_url && !llm.llm_url.value) [llm.llm_url.value, llm.llm_model.value] = [info.llm_url, info.llm || ''];
   if (llm) $('#s-llm-off').hidden = !info.llm_url;
+  onboarding.info(info);
   el.info.replaceChildren(...rows.flatMap(([k, v]) => {
     const dt = document.createElement('dt'), dd = document.createElement('dd');
     dt.textContent = k;
@@ -169,6 +171,7 @@ function renderVoices(c) {
   el.voice.value = c.busy || c.current;
   el.voice.disabled = Boolean(busy);
   $('#s-catvoice').checked = Boolean(c.cat);
+  onboarding.voices(c);
   el.voiceHint.textContent = busy ? t('Je prends la voix {name}…', { name: busy.label.split(' ·')[0] }) : c.error ? t('Raté : {error}', { error: c.error }) : t('Toutes locales. Les voix Piper se téléchargent au premier choix (~60 Mo).');
 }
 
@@ -191,12 +194,15 @@ function connect() {
     else if (s.theme !== theme.id) post('/theme', { id: theme.id, from: CLIENT }).catch(report);
     relang(s.lang_setting);
     renderInfo();
-    if (!s.llm && !keyAsked) askKey(); // premier lancement : sans clé, il n'entend ni ne pense
     renderStatus();
     // la page dit sa langue au serveur (voix, présentation, point du matin) avant qu'Eli ne parle ; un vieux serveur répond 404
     (MIRROR ? Promise.resolve() : post('/lang', { lang }).catch(() => {})).finally(() => {
-      maybeIntro();
-      maybeBrief();
+      if (BARE || MIRROR || passive || store.get('onboarded', false) || store.get('met', false)) {
+        maybeIntro();
+        maybeBrief();
+      } else {
+        onboarding.start(); // premier lancement : il ne parle qu'une fois sa voix, son cerveau et ton micro prêts
+      }
     });
   });
   on('clip', onClip);
@@ -455,8 +461,16 @@ function bindSettings() {
 }
 
 // --- musique (Navidrome) : le panneau Musique (library.js) ; Eli l'ouvre tout seul quand on lui demande un morceau sans accès ---
-const library = initLibrary({ post, note, report, stopAll });
+const library = initLibrary({ post, note, report, stopAll, rendered: (m) => onboarding.music(m) });
 const renderMusic = (m) => library.render(m);
+const onboarding = initOnboarding({
+  speak: (text) => post('/brain/speak', { text }).then(({ turn }) => { minTurn = Math.max(minTurn, turn) }, report),
+  done: () => {
+    store.set('onboarded', true);
+    maybeIntro();
+    maybeBrief();
+  },
+});
 function askMusic() {
   if (BARE) return;
   if (el.music.hidden) togglePanel(el.music);
@@ -468,10 +482,8 @@ function askMusic() {
 }
 
 // La clé Groq, tapée dans Réglages → Moteur (l'app Mac n'a pas de .env à éditer) : le serveur la vérifie et la garde.
-let keyAsked = false;
 function askKey() {
-  keyAsked = true;
-  if (BARE || MIRROR || passive) return;
+  if (onboarding.open || BARE || MIRROR || passive) return;
   if (el.settings.hidden) togglePanel(el.settings);
   const form = $('#s-key');
   form.scrollIntoView({ block: 'center' });
@@ -959,6 +971,7 @@ addEventListener('keydown', (e) => {
     if (e.key === 'Escape') e.target.blur();
     return;
   }
+  if (onboarding.open) return; // l'accueil d'abord : pas de parole ni de raccourci
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   if (e.code === 'Space') {
     e.preventDefault();
@@ -984,7 +997,7 @@ addEventListener('keydown', (e) => {
   }
 });
 addEventListener('keyup', (e) => {
-  if (e.code !== 'Space') return;
+  if (e.code !== 'Space' || onboarding.open) return;
   if (!isField(e.target)) e.preventDefault(); // sinon Espace « clique » le bouton qui a le focus
   pttRelease();
 });
