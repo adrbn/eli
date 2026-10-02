@@ -128,6 +128,7 @@ function renderStatus() {
 function caption(text, kind = '', ms = 0) {
   el.caption.textContent = settings.captions ? text : '';
   el.caption.className = `caption ${kind}`;
+  document.body.classList.toggle('captioned', Boolean(el.caption.textContent) && kind !== 'music'); // il monte pour lui laisser la place
   captionUntil = ms ? performance.now() + ms : 0;
 }
 
@@ -670,6 +671,7 @@ function renderNow() {
     native({ type: 'state', loaded: Boolean(m), singing: Boolean(m) && !paused, title: m ? el.nowTitle.textContent : '' });
   }
   if (!m) {
+    document.body.classList.remove('sung');
     // fini tout seul (pas coupé) et lecture continue : un autre au hasard (le serveur pioche au-delà de l'historique)
     if (lastSong && autoplay && !MIRROR && lastSong.dur - lastSong.pos < 1.5) post('/music/next').catch(report); // sans /stop : il peut être en train de parler
     lastSong = null;
@@ -679,7 +681,9 @@ function renderNow() {
   if (key !== nowKey) {
     nowKey = key;
     renderTitle(m, ly);
+    if (ly && !ly.lines.length && lyricsOn) toast(t('Pas de paroles trouvées pour ce morceau.'));
   }
+  document.body.classList.toggle('sung', lyricsOn && Boolean(ly?.lines.length)); // les paroles prennent leur place sous le visage
   const pos = player.position(m), dur = m.buffer.duration;
   lastSong = { pos, dur };
   if (ly?.lines?.length) renderLyrics(ly.lines, pos + settings.lead / 1000);

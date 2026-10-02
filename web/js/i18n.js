@@ -186,6 +186,7 @@ export const EN = {
   'Je prends la voix {name}…': 'Switching to the {name} voice…',
   'Raté : {error}': 'Failed: {error}',
   'Voix du morceau non isolée : {error}': 'Couldn’t isolate the vocals: {error}',
+  'Pas de paroles trouvées pour ce morceau.': 'No lyrics found for this song.',
   'Voix isolée illisible : {error}': 'Unreadable isolated vocals: {error}',
   'Réponds-lui : maintiens Espace pour parler, ou écris en bas.': 'Answer him: hold Space to talk, or type below.',
   'Sans modèle de voix, je danse sans chanter.': 'No vocal model, so I dance without singing.',

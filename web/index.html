@@ -110,11 +110,18 @@
   body.calm .now-bar { opacity: 0; transform: translateY(8px); pointer-events: none; } /* les paroles restent, la barre part avec le dock */
   /* fenêtre large : la barre se pose juste au-dessus du dock, l'écran et les paroles se centrent dans ce qui reste */
   @media (min-width: 641px) {
-    body.playing:is(:not([data-layout]), [data-layout="window"]) { --chrome: 380px; }
-    body.playing:is(:not([data-layout]), [data-layout="window"]) .stage { padding-bottom: 150px; }
+    /* centré pile : la place d'un sous-titre est rendue en haut (::before) et reprise quand il y en a un (.captioned) */
+    body:is(:not([data-layout]), [data-layout="window"]):not(.onboarding) .stage::before { content: ""; flex: none; height: 33px; transition: height .5s var(--ease), margin .5s var(--ease); }
+    body.captioned:is(:not([data-layout]), [data-layout="window"]) .stage::before { height: 0; margin-bottom: -20px; }
+    body.playing:is(:not([data-layout]), [data-layout="window"]) .caption.music { display: block; visibility: hidden; } /* le lecteur le dit déjà : il garde sa place, sans faire monter */
+    body:is(:not([data-layout]), [data-layout="window"]):not(.sung) .now { margin-top: -20px; } /* sans paroles, la barre est fixe : rien sous le visage */
+    body.playing:is(:not([data-layout]), [data-layout="window"]) { --chrome: 250px; }
+    body.sung:is(:not([data-layout]), [data-layout="window"]) { --chrome: 380px; } /* des paroles à lire : il monte et rétrécit pour elles */
+    body.sung:is(:not([data-layout]), [data-layout="window"]) .stage { padding-bottom: 150px; }
+    body.sung:is(:not([data-layout]), [data-layout="window"]) .stage::before { height: 0; margin-bottom: -20px; }
     body:is(:not([data-layout]), [data-layout="window"]) .now { animation: none; } /* un transform ici décrocherait la barre fixe */
     body:is(:not([data-layout]), [data-layout="window"]) :is(.now-lyrics, .now-bar) { animation: rise .5s var(--ease); }
-    body:is(:not([data-layout]), [data-layout="window"]) .now-bar { position: fixed; left: 0; right: 0; bottom: 92px; margin: auto; width: min(640px, calc(100vw - 32px)); z-index: 4; }
+    body:is(:not([data-layout]), [data-layout="window"]) .now-bar { position: fixed; left: 0; right: 0; bottom: 86px; margin: auto; width: min(640px, calc(100vw - 32px)); z-index: 4; }
   }
   .icon-btn { display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 13px; background: transparent; border: 0; border-radius: 999px; color: var(--muted); white-space: nowrap; transition: color .15s, background .15s; }
   .icon-btn:hover { color: var(--text); background: #ffffff0d; }
@@ -274,6 +281,7 @@
   body.app .bezel { padding: 0; background: none; box-shadow: none; }
   body.app #screen { border-radius: 10px; }
   body.app-mac[data-layout="window"] .stage { padding-top: 40px; } /* les feux de la fenêtre */
+  body.app-mac[data-layout="window"]:not(.sung) .stage { padding-bottom: 40px; } /* autant en bas : centré dans la fenêtre */
 
   /* --- le visage seul : ?bare=1, ou le widget flottant de l'app Mac --------------------------- */
   body:is(.bare, [data-layout="widget"]) .stage { padding: 0; }

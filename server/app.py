@@ -348,6 +348,8 @@ class App:
         log.info("lyrics of %s: %s", name, f"{len(lines)} lines" if lines else "none")
         if lines:
             self.hub.publish("lyrics", {"id": clip_id, "lines": lines, "artist": who[0], "title": who[1]})
+        else:  # the page says so once, and keeps the face where it is
+            self.hub.publish("lyrics", {"id": clip_id, "lines": []})
 
     def status(self) -> dict:
         return {
