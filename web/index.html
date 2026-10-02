@@ -114,15 +114,27 @@
     body:is(:not([data-layout]), [data-layout="window"]):not(.onboarding) .stage::before { content: ""; flex: none; height: 33px; transition: height .5s var(--ease), margin .5s var(--ease); }
     body.captioned:is(:not([data-layout]), [data-layout="window"]) .stage::before { height: 0; margin-bottom: -20px; }
     body.playing:is(:not([data-layout]), [data-layout="window"]) .caption.music { display: block; visibility: hidden; } /* le lecteur le dit déjà : il garde sa place, sans faire monter */
-    body:is(:not([data-layout]), [data-layout="window"]):not(.sung) .now { margin-top: -20px; } /* sans paroles, la barre est fixe : rien sous le visage */
+    body:is(:not([data-layout]), [data-layout="window"]):not(.sung) .now { margin-top: -20px; } /* sans paroles, rien sous le visage : le lecteur est dans le dock */
     body.playing:is(:not([data-layout]), [data-layout="window"]) { --chrome: 250px; }
     /* des paroles à lire : même taille, il monte juste assez pour elles ; la barre et le dock passent dessus le temps qu'on s'en sert */
     body.sung:is(:not([data-layout]), [data-layout="window"]) .stage::before { height: 0; margin-bottom: -20px; }
     body.sung:not(.captioned):is(:not([data-layout]), [data-layout="window"]) .caption { display: none; }
     body:is(:not([data-layout]), [data-layout="window"]) .now { animation: none; } /* un transform ici décrocherait la barre fixe */
     body:is(:not([data-layout]), [data-layout="window"]) :is(.now-lyrics, .now-bar) { animation: rise .5s var(--ease); }
-    body:is(:not([data-layout]), [data-layout="window"]) .now-bar { position: fixed; left: 0; right: 0; bottom: 86px; margin: auto; width: min(640px, calc(100vw - 32px)); z-index: 4; }
   }
+  /* en musique (fenêtre large), le lecteur entre dans le dock : rien ne passe sur les paroles. Le champ se replie en bulle,
+     s'ouvre au clic ou à Entrée, et le lecteur se tasse (titre, temps) le temps qu'on écrit. */
+  .dock:has(.now-bar) { width: min(1000px, calc(100vw - 32px)); }
+  .dock:has(.now-bar) #btn-themes .label { display: none; }
+  .dock:has(.now-bar) .status { flex: none; font-size: 0; } /* la pastille suffit, le mot revient avec le silence */
+  .dock:has(.now-bar) .status::before { margin-right: 0; }
+  #dock .now-bar { flex: 1 1 auto; min-width: 0; width: auto; gap: 4px; padding: 0 4px; background: none; border: 0; border-radius: 0; opacity: 1; transform: none; }
+  #dock .now-bar .seek { min-width: 40px; }
+  .dock:has(.now-bar) .chat { flex: 0 0 40px; min-width: 0; }
+  .dock:has(.now-bar) .chat input:placeholder-shown:not(:focus) { padding: 0; cursor: pointer; background: #0006 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 5h16v11H10l-6 4z' fill='none' stroke='%237a8d7f' stroke-width='1.8' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat center / 18px; }
+  .dock:has(.now-bar) .chat input:placeholder-shown:not(:focus)::placeholder { color: transparent; }
+  .dock:has(.now-bar) .chat:is(:focus-within, :has(input:not(:placeholder-shown))) { flex: 1 1 220px; }
+  .dock:has(.chat :is(:focus, :not(:placeholder-shown))) .now-bar :is(.now-title, .now-time) { display: none; }
   .icon-btn { display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 13px; background: transparent; border: 0; border-radius: 999px; color: var(--muted); white-space: nowrap; transition: color .15s, background .15s; }
   .icon-btn:hover { color: var(--text); background: #ffffff0d; }
   .mic { width: 44px; height: 44px; padding: 0; justify-content: center; background: var(--green-dim); color: var(--green); touch-action: none; user-select: none; -webkit-user-select: none; }

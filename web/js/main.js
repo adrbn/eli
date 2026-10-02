@@ -82,7 +82,7 @@ const el = {
   themes: $('#pane-faces'), settings: $('#panel-settings'), music: $('#pane-music'), library: $('#panel-library'), groups: $('#theme-groups'), custom: $('#custom'),
   drop: $('#drop'), wake: $('#wake'), file: $('#file'), voice: $('#s-voice'), voiceHint: $('#s-voice-hint'),
   now: $('#now'), nowLine: $('#now-line'), nowNext: $('#now-next'), nowTitle: $('#now-title'), nowPlay: $('#now-play'),
-  nowIcon: $('#now-icon'), nowSeek: $('#now-seek'), nowTime: $('#now-time'), nowDur: $('#now-dur'), devlog: $('#devlog'),
+  nowBar: $('.now-bar'), nowIcon: $('#now-icon'), nowSeek: $('#now-seek'), nowTime: $('#now-time'), nowDur: $('#now-dur'), devlog: $('#devlog'),
 };
 
 const face = new Face();
@@ -602,7 +602,7 @@ function showDock() {
     if (busy) return showDock();
     el.dock.classList.add('away');
     document.body.classList.add('calm');
-  }, 3500);
+  }, 2000);
 }
 
 // --- parler : micro, texte, fichiers --------------------------------------------------------
@@ -660,10 +660,20 @@ function renderLyrics(lines, pos) {
   el.nowLine.classList.add('in');
 }
 
+// Fenêtre large : le lecteur vit dans le dock pendant le morceau (il ne recouvre plus les paroles), ailleurs sous le visage.
+const wide = matchMedia('(min-width: 641px)');
+function placeBar(on) {
+  const docked = on && wide.matches && [undefined, 'window'].includes(document.body.dataset.layout);
+  if (docked === (el.nowBar.parentNode === el.dock)) return;
+  if (docked) el.dock.insertBefore(el.nowBar, el.chat);
+  else el.now.append(el.nowBar);
+}
+
 function renderNow() {
   const m = player.ready ? player.music() : null;
   document.body.classList.toggle('playing', Boolean(m));
   el.now.hidden = !m;
+  placeBar(Boolean(m));
   const paused = Boolean(m) && m.paused !== null && m.paused !== undefined;
   const state = m ? `${!paused}|${el.nowTitle.textContent}` : 'false|';
   if (APP && state !== hostState) { // l'app native en fait son menu Musique et l'indicateur de l'encoche
@@ -960,7 +970,7 @@ function fit(canvas) {
   }
 }
 
-let last = performance.now(), wasAsleep = false;
+let last = performance.now(), wasAsleep = false, bootNap = false, painted = false;
 // Sommeil commandé (« va dormir ») : il s'endort quand il a fini de parler, jusqu'à l'heure dite (8 h au plus).
 let pendingSleep = null, sleepUntil = 0;
 function goToSleep(until) {
@@ -1000,7 +1010,7 @@ function frame(now) {
   if (f.gesture === 'meow' && !passive && !MIRROR && player.ready) post('/brain/meow').catch(report);
   sleeper.update(f, settings.snore, face.cat);
   watchSleep();
-  if (wasAsleep && !f.asleep) maybeBrief();
+  if (wasAsleep && !f.asleep) bootNap ? (bootNap = false) : maybeBrief();
   wasAsleep = f.asleep;
   document.body.classList.toggle('asleep', f.asleep);
   fit(el.screen);
@@ -1010,6 +1020,7 @@ function frame(now) {
     renderNow();
   }
   draw(screenCtx, el.screen.width, el.screen.height, f, dt);
+  if (!painted) { painted = true; if (APP) native({ type: 'ready' }) } // l'app retire alors l'image de son écran d'attente
   if (shown(el.themes)) {
     for (const p of previews) {
       fit(p.canvas);
@@ -1281,5 +1292,10 @@ showDock();
 player.unlock().catch(() => { /* le navigateur attend un clic : #wake le demande */ });
 setTimeout(() => { if (!passive && !BARE) el.wake.hidden = player.ready }, 800);
 if (store.get('sleepUntil', 0) > Date.now()) goToSleep(store.get('sleepUntil', 0)); // rechargé en pleine nuit : il dort encore
+else if (APP === 'mac') { // l'app l'a montré endormi le temps que le serveur démarre : il ouvre les yeux doucement, sans le point du matin
+  face.e.sleep = 1;
+  face.sleep();
+  bootNap = true;
+}
 requestAnimationFrame(frame);
 window.eli = { face, player, mic, frame }; // pour inspecter (et animer un onglet masqué) depuis la console
