@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "id": "pixel",
+  "name": "Pixel",
+  "author": "adrbn",
+  "license": "MIT",
+  "space": "wide",
+  "vars": {
+    "hw": "0.2*sc",
+    "hh": "max(0.03, 0.24*sc*open)",
+    "er": "min(hw, hh)*0.6",
+    "ex": "1 + s*0.4 + gx*0.125",
+    "ey": "0.38 + gy*0.1 - bo*0.0625",
+    "mw": "0.075 + w*0.09 - r*0.045",
+    "mh": "max(minH, 0.022 + o*0.075 + r*0.012)"
+  },
+  "shapes": [
+    { "rect": [1, 0.82, "mw", "mh"], "radius": "min(mw, mh)*(0.7 + r*0.3)" },
+    { "cut": { "region": "abs(y - 0.82) < 0.018" }, "when": "t > 0.5 && mh > 0.05" },
+    { "mirror": true, "group": [
+      { "rect": ["ex", "ey", "hw", "hh"], "radius": "er",
+        "clip": { "outside": { "region": "ang && y - (ey - hh) < hh*(ang > 0 ? ang*1.1*clamp((1 - s*(x - ex)/hw)/2, 0, 1) : -ang*0.9*(1 - clamp((1 - s*(x - ex)/hw)/2, 0, 1)))" } } },
+      { "cut": { "region": "box(x - ex, y - ey, hw, hh, er) <= 0 && !(ang && y - (ey - hh) < hh*(ang > 0 ? ang*1.1*clamp((1 - s*(x - ex)/hw)/2, 0, 1) : -ang*0.9*(1 - clamp((1 - s*(x - ex)/hw)/2, 0, 1)))) && sq((x - ex)/(1.3*hw)) + sq((y - ey - 1.1*hh)/(1.2*hh*hap)) <= 1" },
+        "when": "hap > 0.05" }
+    ]}
+  ],
+  "anchors": {
+    "exL": "0.6 + gx*0.125", "exR": "1.4 + gx*0.125", "ey": "0.38 + gy*0.1 - bo*0.0625",
+    "ew": "0.2*sc", "eh": "0.24*sc", "crown": "0.38 + gy*0.1 - bo*0.0625 - 0.24*sc - 0.02", "hw": 0.82
+  }
+}

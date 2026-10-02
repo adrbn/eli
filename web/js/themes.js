@@ -458,4 +458,7 @@ export const THEMES = [
   { id: 'oscillo', name: 'Oscillo', family: 'Autres', screen: 'free', note: 'trace d’oscilloscope', make: () => vector(264, 198, oscillo, 23, [130, 2, 19.6]) },
 ];
 
+// Les visages en code, pour les tests de parité avec leurs fichiers .eliface.
+export { catLit, matLit, pixLit };
+
 export const themeById = (id) => THEMES.find((t) => t.id === id);
