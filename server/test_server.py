@@ -229,6 +229,13 @@ class ServerTest(unittest.TestCase):
                 env = (Path(tmp) / ".env").read_text()
                 self.assertIn(f"LLM_URL={url}\n", env)
                 self.assertEqual((Path(tmp) / ".env").stat().st_mode & 0o777, 0o600)
+                with urllib.request.urlopen(self.base + "/api/models") as r:  # the picker in Settings > Brain
+                    self.assertEqual(json.loads(r.read()), {"current": "qwen3-8b", "models": ["qwen3-8b"]})
+                code, body = self.post("/key", json.dumps({"model": "qwen3-4b"}).encode())
+                self.assertEqual((code, body["llm"]), (200, "qwen3-4b"))
+                self.assertIn("LLM_MODEL=qwen3-4b\n", (Path(tmp) / ".env").read_text())
+                code, _ = self.post("/key", json.dumps({"model": "x\nGROQ_API_KEY=evil"}).encode())
+                self.assertEqual(code, 400)
                 code, body = self.post("/key", json.dumps({"llm_url": "http://x/v1\nGROQ_API_KEY=evil"}).encode())
                 self.assertEqual(code, 400)
                 code, body = self.post("/key", json.dumps({"llm_url": ""}).encode())

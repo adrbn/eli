@@ -24,6 +24,7 @@ Role 2 · the brain (brain.py), which only talks to the screen through this prot
   POST /brain/hotword  body = 16 kHz mono WAV       always-on listening: is it "Eli, …"? (see hotword.py)
   POST /key  {"groq": "gsk_…"}                     the Groq key from Settings: checked with Groq, kept in the .env
              {"llm_url", "llm_model", "llm_key"}    or a local OpenAI-style LLM (checked on /models); llm_url "" = Groq
+             {"model": "…"}                         another model on the same brain (GET /api/models lists them)
   POST /music/setup  {"url","user","password"}      Navidrome access (checked, only a token is kept); /music/forget
   GET  /api/status, /api/voices, /api/memory        state (incl. "lang", "lang_setting"), voices (POST /voice {"id"}), memories
   GET  /api/music                                   {"configured","url","user","server"}
@@ -444,6 +445,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._events()
         if path == "/api/status":
             return self._json(200, self.app.status())
+        if path == "/api/models":  # the picker in Settings > Brain
+            try:
+                return self._json(200, {"current": self.app.cfg["LLM_MODEL"], "models": self.app.brain.models()})
+            except keys.BadKey as exc:
+                return self._error(502, str(exc))
         if path == "/api/memory":
             mem = self.app.brain.memory
             return self._json(200, {"notes": mem.notes(), "messages": len(mem.recent())})
@@ -779,12 +785,16 @@ class Handler(BaseHTTPRequestHandler):
         data = self._json_body()
         if data is None:
             return
-        fields = {k: data.get(k) for k in ("groq", "llm_url", "llm_model", "llm_key") if k in data}
+        fields = {k: data.get(k) for k in ("groq", "llm_url", "llm_model", "llm_key", "model") if k in data}
         if not fields or not all(isinstance(v, str) for v in fields.values()):
             return self._error(400, "groq or llm_url expected")
         fields = {k: v.strip() for k, v in fields.items()}
         try:
-            if "groq" in fields:
+            if "model" in fields:  # the picker: another model on the same brain
+                if not fields["model"] or not keys.ENV_VALUE.fullmatch(fields["model"]):
+                    raise keys.BadKey("invalid model")
+                updates = {"LLM_MODEL": fields["model"]}
+            elif "groq" in fields:
                 keys.check_groq(fields["groq"])
                 updates = {"GROQ_API_KEY": fields["groq"]}
             elif not fields["llm_url"]:  # back to Groq

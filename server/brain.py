@@ -489,19 +489,26 @@ class Brain:
             return
         raise RuntimeError(f"LLM unavailable: {last}")
 
+    def models(self) -> list[str]:
+        """What he can think with: the local server's models, or Groq's chat models (BadKey when unreachable)."""
+        if not self.has_llm():
+            return []
+        if self.cfg.get("LLM_URL"):
+            return list_models(self.cfg["LLM_URL"], self._llm_key())
+        return [m for m in list_models(GROQ, self._llm_key()) if not NOT_CHAT.search(m)]
+
     def _heal(self) -> bool:
         """Groq retires models: when none of ours is listed anymore, think with the best one still there (until restart)."""
         if self.cfg.get("LLM_URL"):
             return False
         try:
-            listed = list_models(GROQ, self._llm_key())
+            listed = self.models()
         except BadKey:
             return False
         mine = [m for m in (self.cfg["LLM_MODEL"], self.cfg.get("LLM_FALLBACK_MODEL")) if m]
         if any(m in listed for m in mine):  # still served: the failure is elsewhere (network, quota)
             return False
-        chat = [m for m in listed if not NOT_CHAT.search(m)]
-        pick = next((m for m in GROQ_PICKS if m in chat), chat[0] if chat else None)
+        pick = next((m for m in GROQ_PICKS if m in listed), listed[0] if listed else None)
         if not pick:
             return False
         log.warning("Groq no longer serves %s: thinking with %s", ", ".join(mine), pick)
