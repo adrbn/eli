@@ -4,7 +4,7 @@ import { AbsoluteFill, Audio, staticFile, useCurrentFrame } from 'remotion';
 import { FaceCanvas } from './components/FaceCanvas.jsx';
 import { Esp32, IPhone, MacBook } from './components/Devices.jsx';
 import { GREEN, INK, MONO, Reveal, SANS, Typed } from './components/Type.jsx';
-import { B, BARS, MOOD_SEQ, SONG, THEME_SEQ, barAt, faceAt, noteAt } from './lib/face.js';
+import { B, BARS, MOOD_SEQ, SONG, THEME_DUR, THEME_SEQ, barAt, faceAt } from './lib/face.js';
 import score from './data/score.json';
 import { BEAT, FPS, beatPulse, bounce, clamp, easeIn, easeInOut, easeOut, expoOut, mix, pulse, range, spring } from './lib/time.js';
 
@@ -13,7 +13,7 @@ const BARS_T = [0, 1, 2, 3, 4].map((i) => B.DROP + 2 * i);
 const BEATS = (a, b) => Array.from({ length: Math.round((b - a) / BEAT) }, (_, i) => a + i * BEAT);
 
 function heroTheme(t) {
-  if (t >= B.THEMES && t < B.ASK) return THEME_SEQ[Math.floor((t - B.THEMES) / BEAT)][0];
+  if (t >= B.THEMES && t < B.ASK) return THEME_SEQ[Math.floor((t - B.THEMES) / THEME_DUR)][0];
   if (t >= B.DROP) return barAt(t)[0];
   return 'pixel';
 }
@@ -31,7 +31,7 @@ function heroCamera(t) {
     const shake = range(t, 23.55, 24) * 7;
     x = Math.sin(t * 97) * shake; y = Math.cos(t * 83) * shake;
   } else {
-    s = 0.66 + 0.06 * pulse(t, BARS_T, 6) + 0.015 * beatPulse(t, B.DROP, B.WALL, 10); y = -95;
+    s = 0.74 + 0.04 * pulse(t, BARS_T, 6) + 0.015 * beatPulse(t, B.DROP, B.WALL, 10); y = -50;
     s += 0.08 * (1 - spring(t, B.DROP, 8)); // lands from the push-in
   }
   return { s, x, y };
@@ -72,7 +72,7 @@ function MacWindow({ t }) {
 
 function Hero({ t, f }) {
   const { s, x, y } = heroCamera(t), c = crt(t), theme = heroTheme(t);
-  const switched = t >= B.THEMES && t < B.ASK ? (t - B.THEMES) % BEAT : 1;
+  const switched = t >= B.THEMES && t < B.ASK ? (t - B.THEMES) % THEME_DUR : 1;
   const glitch = switched < 0.05 ? (1 - switched / 0.05) : 0;
   const fadeOut = 1 - range(t, B.WALL - 0.02, B.WALL);
   return (
@@ -125,7 +125,7 @@ function MoodWord({ t }) {
         {MOOD_SEQ[i][1]}
       </div>
       <div style={{ position: 'absolute', left: 0, right: 0, bottom: 70, textAlign: 'center', fontFamily: MONO, fontSize: 26, color: GREEN, opacity: 0.85 }}>
-        [{MOOD_SEQ[i][0]}]
+        [{MOOD_SEQ[i][1].toLowerCase()}]
       </div>
       <div style={{ position: 'absolute', left: 90, top: 80, opacity: 1 - range(t, 17.6, 18) }}>
         <Reveal text="It feels." t={t} t0={B.MOODS + 0.05} size={64} stagger={0.04} />
@@ -136,14 +136,13 @@ function MoodWord({ t }) {
 
 function ThemeLabel({ t }) {
   if (t < B.THEMES || t >= B.ASK) return null;
-  const i = Math.floor((t - B.THEMES) / BEAT), [, name, note] = THEME_SEQ[i], k = expoOut(((t - B.THEMES) % BEAT) / 0.2);
+  const i = Math.floor((t - B.THEMES) / THEME_DUR), [, name, note] = THEME_SEQ[i], k = expoOut(((t - B.THEMES) % THEME_DUR) / 0.2);
   return (
     <>
       <div style={{ position: 'absolute', left: 0, right: 0, bottom: 64, textAlign: 'center', transform: `translateY(${(1 - k) * 16}px)`, opacity: k }}>
         <div style={{ fontFamily: SANS, fontWeight: 700, fontSize: 52, letterSpacing: '-0.02em', color: INK }}>{name}</div>
         <div style={{ fontFamily: MONO, fontSize: 22, color: DIM, marginTop: 10 }}>{note}</div>
       </div>
-      <div style={{ position: 'absolute', right: 90, top: 80, fontFamily: MONO, fontSize: 26, color: GREEN }}>{String(i + 2).padStart(2, '0')} / 14</div>
       <div style={{ position: 'absolute', left: 90, top: 80 }}>
         <Reveal text="Wears many faces." t={t} t0={B.THEMES + 0.05} size={64} stagger={0.03} />
       </div>
@@ -155,8 +154,8 @@ function ThemeLabel({ t }) {
 const WORDS = SONG.map((n) => ({ ...n, join: n.s === 'tle' || n.s === 'ery' }));
 function Lyrics({ t }) {
   if (t < B.DROP || t >= B.WALL) return null;
-  const lines = score.lines, li = Math.max(0, lines.findIndex(([a, b]) => t < WORDS[b - 1].t + WORDS[b - 1].d + 0.3));
-  const [a, b] = lines[li === -1 ? lines.length - 1 : li], next = lines[li + 1];
+  const lines = score.lines, found = lines.findIndex(([, b]) => t < WORDS[b - 1].t + WORDS[b - 1].d + 0.3);
+  const li = found === -1 ? lines.length - 1 : found, [a, b] = lines[li], next = lines[li + 1];
   const o = range(t, B.DROP + 0.1, B.DROP + 0.4) * (1 - range(t, 33.6, 33.95));
   const render = (from, to, size, live) => WORDS.slice(from, to).map((w, i) => {
     const fill = live ? clamp((t - w.t) / Math.max(0.12, w.d * 0.8)) : 0;
@@ -209,7 +208,7 @@ function Wall({ t, f }) {
       {WALL.map((id, i) => {
         const [x, y] = pos(i), lab = range(t, 35.3 + i * 0.03, 35.7 + i * 0.03);
         return (
-          <div key={id} style={{ position: 'absolute', left: x - TW / 2, top: y - TH / 2, width: TW, height: TH, borderRadius: 22, background: '#050605', boxShadow: `inset 0 0 0 1px rgba(255,255,255,${0.09 * (1 - z)})`, overflow: 'hidden' }}>
+          <div key={id} style={{ position: 'absolute', left: x - TW / 2, top: y - TH / 2, width: TW, height: TH, borderRadius: 22, background: '#000', boxShadow: `inset 0 0 0 1px rgba(255,255,255,${0.09 * (1 - z)})`, overflow: 'hidden' }}>
             <FaceCanvas theme={id} w={TW * 2} h={(TH - 40) * 2} f={f} glow={0.8} crisp={!id.startsWith('trait') && id !== 'chaton' && id !== 'oscillo'} style={{ transform: 'scale(.5)', transformOrigin: '0 0', marginTop: 6 }} />
             <div style={{ position: 'absolute', left: 0, right: 0, bottom: 10, textAlign: 'center', fontFamily: MONO, fontSize: 17, color: DIM, opacity: lab }}>{NAMES[id]}</div>
           </div>
@@ -217,7 +216,10 @@ function Wall({ t, f }) {
       })}
       <div style={{ position: 'absolute', left: 0, right: 0, top: 70, textAlign: 'center', display: 'flex', justifyContent: 'center', gap: 22, alignItems: 'baseline' }}>
         <Reveal text="14 faces." t={t} t0={36.4} size={72} stagger={0.04} />
-        <Reveal text="One personality." t={t} t0={36.9} size={72} weight={600} color={DIM} stagger={0.03} />
+        <Reveal text="So far." t={t} t0={36.9} size={72} weight={600} color={DIM} stagger={0.03} />
+      </div>
+      <div style={{ position: 'absolute', left: 0, right: 0, bottom: 64, textAlign: 'center' }}>
+        <Reveal text="A community catalog. Draw the next one." t={t} t0={37.6} size={44} weight={600} color={GREEN} stagger={0.015} tracking={-0.015} />
       </div>
     </div>
   );
@@ -246,25 +248,21 @@ function Devices({ t, f }) {
   );
 }
 
+// The end: he says good night, his eyes close, and everything drifts off with the music. No power-off snap.
 function Finale({ t, f }) {
-  const pop = bounce(t, B.FINALE, 9, 0.45);
-  const offY = easeIn(range(t, B.OFF, B.OFF + 0.22)), offX = easeIn(range(t, B.OFF + 0.22, B.OFF + 0.4)), dot = 1 - range(t, B.OFF + 0.45, B.OFF + 0.9);
-  const textOut = 1 - range(t, 50.1, 50.5);
-  const url = spring(t, 51.2, 8);
+  const pop = bounce(t, B.FINALE, 9, 0.45), out = 1 - easeInOut(range(t, B.OFF + 0.4, B.LEN - 0.3));
   return (
-    <>
-      <div style={{ position: 'absolute', left: 160, top: 140, width: 1600, height: 800, opacity: dot, transform: `translateY(-150px) scale(${(0.18 + 0.4 * pop)}) scaleY(${1 - 0.994 * offY}) scaleX(${1 - 0.99 * offX})`, filter: offY > 0 ? `brightness(${1 + 3 * offY})` : 'none' }}>
-        <FaceCanvas theme="pixel" w={1600} h={800} f={f} crisp glow={1 + offY} />
+    <div style={{ position: 'absolute', inset: 0, opacity: out }}>
+      <div style={{ position: 'absolute', left: 160, top: 140, width: 1600, height: 800, transform: `translateY(-170px) scale(${0.18 + 0.4 * pop})` }}>
+        <FaceCanvas theme="pixel" w={1600} h={800} f={f} crisp />
       </div>
-      <div style={{ position: 'absolute', left: 0, right: 0, top: 640, display: 'flex', flexDirection: 'column', alignItems: 'center', opacity: textOut }}>
+      {t > 49.9 && <div style={{ position: 'absolute', left: 1180, top: -10 }}><Zzz t={t} opacity={range(t, 50.1, 50.9)} /></div>}
+      <div style={{ position: 'absolute', left: 0, right: 0, top: 600, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <Reveal text="Eli" t={t} t0={46.45} size={210} weight={800} tracking={-0.06} stagger={0.08} />
-        <Reveal text="A face for your LLM." t={t} t0={47.1} size={44} weight={500} color={DIM} stagger={0.02} tracking={-0.01} style={{ marginTop: 14 }} />
+        <Reveal text="A face for your LLM." t={t} t0={47.1} size={48} weight={500} color={DIM} stagger={0.02} tracking={-0.01} style={{ marginTop: 18 }} />
+        <Reveal text="Free and open source. Find it on GitHub: adrbn/eli" t={t} t0={47.9} size={34} weight={600} color={GREEN} stagger={0.008} tracking={-0.005} style={{ marginTop: 46 }} />
       </div>
-      <div style={{ position: 'absolute', left: 0, right: 0, top: mix(1000, 515, url), textAlign: 'center' }}>
-        <Typed text="github.com/adrbn/eli" t={t} t0={47.7} size={mix(30, 44, url)} cps={30} />
-        <div style={{ fontFamily: SANS, fontSize: 26, fontWeight: 500, color: DIM, marginTop: 18, opacity: range(t, 51.6, 52) }}>Free. Mac app, iPhone app, or Docker.</div>
-      </div>
-    </>
+    </div>
   );
 }
 

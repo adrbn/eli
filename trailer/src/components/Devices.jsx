@@ -25,10 +25,9 @@ export function MacBook({ f }) {
 export function IPhone({ f }) {
   return (
     <div style={{ width: 250, height: 520, borderRadius: 48, padding: 9, background: 'linear-gradient(135deg,#2a2d2a,#0e100e)', boxShadow: `inset 0 0 0 1.5px ${edge}, 0 40px 100px rgba(0,0,0,.7)` }}>
-      <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 40, background: '#050605', overflow: 'hidden', display: 'grid', placeItems: 'center' }}>
+      <div style={{ position: 'relative', width: '100%', height: '100%', borderRadius: 40, background: '#000', overflow: 'hidden', display: 'grid', placeItems: 'center' }}>
         <div style={{ position: 'absolute', top: 12, left: '50%', width: 76, height: 22, marginLeft: -38, borderRadius: 12, background: '#000' }} />
         <FaceCanvas theme="trait-doux" w={220} h={220} f={f} />
-        <div style={{ position: 'absolute', bottom: 22, left: 24, right: 24, height: 38, borderRadius: 19, border: '1px solid rgba(255,255,255,.1)', background: 'rgba(255,255,255,.04)' }} />
       </div>
     </div>
   );

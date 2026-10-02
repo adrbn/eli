@@ -21,3 +21,10 @@ for key, text in LINES.items():
     (out / f"{key}.wav").write_bytes(wav)
     (out / f"{key}.json").write_text(json.dumps(phonemes))
     print(key, len(wav), len(phonemes or []))
+
+# The song, one spoken syllable per note: prep/sing.py puts each one on its pitch and length.
+SYLLABLES = ["Lit", "up", "in", "the", "dark", "I'm", "a", "lit", "tull", "green", "spark", "Sing", "it", "loud",
+             "sing", "it", "low", "ev", "ree", "song", "that", "you", "know", "oh"]
+(out / "syl").mkdir(exist_ok=True)
+for i, text in enumerate(SYLLABLES):
+    (out / "syl" / f"{i:02}.wav").write_bytes(tts.synth(text)[0])

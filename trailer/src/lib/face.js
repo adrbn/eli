@@ -10,12 +10,14 @@ export const B = score.bands;
 export const SONG = score.song;
 
 export const MOOD_SEQ = [['joie', 'JOY'], ['surprise', 'SURPRISE'], ['amour', 'LOVE'], ['malice', 'MISCHIEF'], ['colère', 'ANGER'], ['tristesse', 'SADNESS'], ['gêne', 'SHY'], ['rire', 'LAUGHTER']];
+// Four faces, one a second: enough to show the idea, each on screen long enough to be seen.
 export const THEME_SEQ = [
-  ['blocs', 'Blocks', 'OLED, chunky square pixels'], ['perles-fond', 'Lit beads', 'Color LED matrix'], ['trait', 'Line', 'Round eyes, real lips'],
-  ['trait-neon', 'Neon', 'Glowing outlines'], ['chat-pixel', 'Pixel cat', 'Ears that twitch'], ['chaton', 'Kitten', 'Big eyes, pink cheeks'],
-  ['matrice', 'Matrix', 'Round 19×19 LED matrix'], ['oscillo', 'Oscillo', 'An oscilloscope trace'],
+  ['perles-fond', 'Lit beads', 'Color LED matrix'], ['trait', 'Line', 'Round eyes, real lips'],
+  ['chaton', 'Kitten', 'Big eyes, pink cheeks'], ['matrice', 'Matrix', 'Round 19×19 LED matrix'],
 ];
-export const BARS = [['perles-fond', 'tropical', 'TROPICAL'], ['pixel', 'electro', 'ELECTRO'], ['trait-neon', 'rock', 'ROCK'], ['chat-pixel', 'country', 'COUNTRY'], ['trait-doux', 'chill', 'CHILL']];
+export const THEME_DUR = 2 * BEAT;
+// He sings as Pixel, his main face: only the outfit changes with the bar, nothing ever covers the mouth.
+export const BARS = [['pixel', 'rap', 'RAP'], ['pixel', 'rock', 'ROCK'], ['pixel', 'jazz', 'JAZZ'], ['pixel', 'country', 'COUNTRY'], ['pixel', 'chill', 'CHILL']];
 
 export const moodAt = (t) => (t >= B.MOODS && t < B.THEMES ? MOOD_SEQ[Math.floor((t - B.MOODS) / BEAT)][0] : t >= B.ASK && t < B.DROP - 0.25 ? 'malice' : null);
 export const barAt = (t) => BARS[clamp(Math.floor((t - B.DROP) / 2), 0, 4)];
@@ -108,7 +110,7 @@ export function faceAt(t) {
   } else if (t < B.ASK) {
     const u = t - B.THEMES;
     gx = 0.55 * Math.sin(Math.PI * u); gy = -0.1 + 0.08 * Math.sin(2 * Math.PI * u);
-    hap = 0.8; sc = 1.03; bo = beatPulse(t, B.THEMES, B.ASK) * 0.4;
+    hap = 0.8; sc = 1.03; bo = beatPulse(t, B.THEMES, B.ASK, 7, THEME_DUR) * 0.4;
     mouth = { o: 0.04, w: 0.8, r: 0, t: 0 };
   } else if (t < B.DROP) {
     const ready = range(t, 23.75, 23.9);

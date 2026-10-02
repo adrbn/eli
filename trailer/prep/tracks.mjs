@@ -3,12 +3,13 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { SR, analyzeSpeech, mouthAt, visemeTrack } from '../../web/js/analysis.js';
 
 const FPS = 30, dir = new URL('../public/voice/', import.meta.url), out = {};
-for (const key of ['hi', 'eli', 'sing', 'night']) {
+for (const key of ['hi', 'eli', 'sing', 'song', 'night']) {
   const buf = readFileSync(new URL(`${key}.wav`, dir)), rate = buf.readUInt32LE(24), pcm = new Int16Array(buf.buffer, buf.byteOffset + 44, (buf.length - 44) >> 1);
   const n = Math.floor(pcm.length * SR / rate), x = new Float32Array(n);
   for (let i = 0; i < n; i++) { const p = i * rate / SR, k = Math.floor(p), f = p - k; x[i] = ((pcm[k] || 0) * (1 - f) + (pcm[k + 1] || 0) * f) / 32768 }
-  const track = analyzeSpeech(x);
-  Object.assign(track, visemeTrack(JSON.parse(readFileSync(new URL(`${key}.json`, dir))), track.n));
+  const sung = key === 'song'; // sung, the app reads lips off the isolated voice alone, without phonemes
+  const track = analyzeSpeech(x, -Infinity, sung);
+  if (!sung) Object.assign(track, visemeTrack(JSON.parse(readFileSync(new URL(`${key}.json`, dir))), track.n));
   const dur = pcm.length / rate, frames = [];
   for (let i = 0; i < Math.ceil(dur * FPS); i++) {
     const m = mouthAt(track, i / FPS) || { o: 0, w: 0.3, r: 0, t: 0 };

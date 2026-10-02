@@ -118,7 +118,7 @@ for e8, ln, m, _, _ in SONG:
     tone = 0.6 * (2 * np.abs(2 * (ph % 1) - 1) - 1) + 0.4 * np.sign(np.sin(2 * np.pi * ph)) * 0.5
     e = np.minimum(1, tt / 0.02) * np.where(tt < d, 1 - 0.25 * np.minimum(1, tt / 0.3), np.maximum(0, 1 - (tt - d) / 0.12) * 0.75)
     add(lead, lp(tone, 2800) * e, t0)
-lead *= 0.13
+lead *= 0.05  # under Eli's voice now (prep/sing.py), it only doubles her melody
 
 # Effects: the first pixel's tick, theme-switch blips, the riser, three impacts.
 fx = np.zeros(N)
@@ -136,8 +136,6 @@ def impact(g):
     return (kick(1.0, True)[:n] if n <= at(0.9) else np.pad(kick(1.0, True), (0, n - at(0.9)))) * g + lp(rng.standard_normal(n), 900) * np.exp(-tt * 3) * 0.25 * g
 for t0, g in ((WAKE, 0.8), (DROP, 1.0), (FINALE, 1.0)):
     add(fx, impact(g), t0)
-n = at(0.6); tt = np.arange(n) / SR  # power-off: a falling sine
-add(fx, np.sin(2 * np.pi * np.cumsum(1400 * np.exp(-tt * 6) + 60) / SR) * np.exp(-tt * 5) * 0.12, OFF)
 
 # Reverb on pad, arp and lead.
 ir_n = at(2.4); ir_t = np.arange(ir_n) / SR
@@ -148,7 +146,7 @@ wet = fftconvolve(wet_src, ir)[:N] * 0.35
 mix = pad + arp + drums * 0.9 + bass + lead + fx + wet
 
 # Eli's lines, ducking the music.
-VOICE = {'hi': WAKE + 0.7, 'eli': 10.3, 'sing': ASK + 0.2, 'night': 49.4}
+VOICE = {'hi': WAKE + 0.7, 'eli': 10.3, 'sing': ASK + 0.2, 'song': DROP, 'night': 49.4}
 duck = np.ones(N)
 voice = np.zeros(N)
 for key, t0 in VOICE.items():
@@ -157,13 +155,14 @@ for key, t0 in VOICE.items():
     y = np.interp(np.arange(int(len(x) * SR / r)) * r / SR, np.arange(len(x)), x)
     add(voice, y * 0.9, t0)
     i, j = at(t0 - 0.1), at(t0 + len(y) / SR + 0.2)
-    duck[i:j] = 0.55
+    duck[i:j] = 0.75 if key == 'song' else 0.55  # she sings over the band, not instead of it
 duck = np.convolve(duck, np.ones(2205) / 2205, mode='same')
 voice_wet = fftconvolve(voice, ir[: at(0.8)])[:N] * 0.08
 mix = mix * duck + voice + voice_wet
 
 mix = np.tanh(mix * 1.6) / 1.6  # gentle limiter
 mix /= np.max(np.abs(mix)) / 0.89
+mix *= np.interp(t_all, [0, OFF, LEN], [1, 1, 0]) ** 1.5  # he falls asleep: the music drifts off with him
 st = np.stack([mix, np.roll(mix, 9)], axis=1)  # a hint of width
 with wave.open(str(HERE / 'public' / 'score.wav'), 'wb') as w:
     w.setnchannels(2); w.setsampwidth(2); w.setframerate(SR)
