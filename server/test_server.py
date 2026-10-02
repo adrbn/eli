@@ -414,8 +414,8 @@ class ServerTest(unittest.TestCase):
         finally:
             brain.music, brain.face = saved
 
-    def test_previous_next_and_the_intro(self):
-        """Previous / next walk the songs sung; past the end, a random one; a picked song is announced first."""
+    def test_previous_next(self):
+        """Previous / next walk the songs sung; past the end, a random one; a song is never read out, only played."""
         brain, sent = self.server.app.brain, []
         song = lambda i: {"id": f"s{i}", "title": f"T{i}", "artist": "A"}  # noqa: E731
 
@@ -438,8 +438,8 @@ class ServerTest(unittest.TestCase):
         brain.music, brain.face, brain.tts, brain.played, brain.place = Music(), Face(), Tts(), [], -1
         try:
             self.assertEqual(brain.step(-1), (None, False))
-            brain.sing(song(1), announce=True)
-            self.assertEqual([a[1] for a in sent], ["speech", "music"])
+            brain.sing(song(1))
+            self.assertEqual([a[1] for a in sent], ["music"])
             self.assertIn("T1", sent[0][2])
             brain.sing(song(2))
             self.assertEqual(brain.step(-1), (song(1), False))
@@ -454,13 +454,13 @@ class ServerTest(unittest.TestCase):
             def slow(song_id):
                 fetches.append(song_id)
                 if len(fetches) == 1:
-                    brain.sing(song(7), announce=True)  # asked again mid-download
+                    brain.sing(song(7))  # asked again mid-download
                 return b"mp3"
 
             brain.music.fetch, sent[:] = slow, []
-            brain.sing(song(7), announce=True)
+            brain.sing(song(7))
             self.assertEqual(fetches, ["s7"], "the same song asked during its download doesn't restart it")
-            self.assertEqual([a[1] for a in sent], ["speech", "music"])
+            self.assertEqual([a[1] for a in sent], ["music"])
             brain.sing(song(7))
             self.assertEqual(len(fetches), 2, "once it played, asking again plays it again")
 
@@ -471,7 +471,7 @@ class ServerTest(unittest.TestCase):
                 sent[:] = []
                 brain._play(brain.turn, query)
                 self.assertIn("T8", sent[0][2], f"{query!r}: another one like it, not the same again")
-                brain.sing(song(7), announce=False)
+                brain.sing(song(7))
         finally:
             brain.music, brain.face, brain.tts, brain.played, brain.place = saved
 

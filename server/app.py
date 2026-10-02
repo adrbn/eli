@@ -847,7 +847,7 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 song = self.app.music.song(song_id)
                 brain.publish("brain", {"stage": "fetch", "text": f"{song['artist']} – {song['title']}".strip(" –")})
-                brain.sing(song, announce=True)
+                brain.sing(song)
             except (MusicError, OSError) as exc:
                 log.warning("picker: can't play %s: %s", song_id, exc)
                 brain.publish("brain", {"stage": "error", "error": str(exc)})
@@ -864,7 +864,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not song:
                     return brain.publish("brain", {"stage": "error", "error": "no song"})
                 brain.publish("brain", {"stage": "fetch", "text": f"{song['artist']} – {song['title']}".strip(" –")})
-                brain.sing(song, announce=True, remember=new)
+                brain.sing(song, remember=new)
             except (MusicError, OSError) as exc:
                 log.warning("music step %+d: %s", delta, exc)
                 brain.publish("brain", {"stage": "error", "error": str(exc)})

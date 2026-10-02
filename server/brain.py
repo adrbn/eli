@@ -72,14 +72,6 @@ INTRO_GREETING = {
 INTRO_MARKER = {"fr": "(C'est notre première rencontre.)", "en": "(This is our first meeting.)"}
 INTRO_QUESTIONS = 5
 
-# Before a song he picked from the library: covers the seconds the vocal track needs to start. {artist} lines are skipped
-# when the song has none.
-SONG_INTROS = {
-    "fr": ("Voici {title}, de {artist}.", "Allez, {title}, de {artist} !", "Un peu de {artist} : {title}.",
-           "C'est parti pour {title} !", "On enchaîne avec {title}, de {artist}.", "Voici {title}."),
-    "en": ("Here's {title}, by {artist}.", "Let's go: {title}, by {artist}!", "A bit of {artist}: {title}.",
-           "Here we go, {title}!", "Up next, {title}, by {artist}.", "Here's {title}."),
-}
 HISTORY = 50  # songs remembered for "previous"
 
 # Everything Eli says without the LLM.
@@ -554,15 +546,14 @@ class Brain:
                 self._say(turn, self.line("not_found"), [], "gêne")
                 return
             self.publish("brain", {"stage": "fetch", "text": f"{song['artist']} – {song['title']}".strip(" –")})
-            self.sing(song, announce=True)  # his own sentence came before the search: now he names what it found
+            self.sing(song)  # his own sentence came before the search; the page shows the title, he doesn't read it out
         except MusicError as exc:
             self.publish("brain", {"stage": "error", "error": str(exc)})
             self._say(turn, self.line("music_down"), [], "tristesse")
 
-    def sing(self, song: dict, announce: bool = False, remember: bool = True) -> None:
+    def sing(self, song: dict, remember: bool = True) -> None:
         """Streams a library song to the face, which sings it. The download takes seconds: talking over it or cutting
-        his speech (Esc) must not lose it, only a real stop or another song does. Sent as turn 0 so no turn outdates it.
-        announce: he names it first, which also covers the seconds the isolated voice needs to start."""
+        his speech (Esc) must not lose it, only a real stop or another song does. Sent as turn 0 so no turn outdates it."""
         with self.lock:
             if self.fetching == (song["id"], self.song):
                 return  # asked again while it downloads: that download plays it, restarting would double the wait
@@ -573,8 +564,6 @@ class Brain:
             with self.lock:
                 self.played = [*self.played[: self.place + 1], song][-HISTORY:]
                 self.place = len(self.played) - 1
-        if announce:  # said during the download (~7 s through a VPN): he answers at once, the song follows it
-            self._announce(song)
         try:
             data = self.music.fetch(song["id"])
         finally:
@@ -585,17 +574,6 @@ class Brain:
             return
         title = f"{song['artist']} – {song['title']}".strip(" –")
         self.face.clip(data, "music", title, 0, ctype="audio/mpeg", name=f"{title[:100]}.mp3", genre=song.get("genre"))
-
-    def _announce(self, song: dict) -> None:
-        lines = [x for x in SONG_INTROS[self.lang()] if song.get("artist") or "{artist}" not in x]
-        text = random.choice(lines).format(title=song.get("title") or "", artist=song.get("artist") or "")
-        try:  # a silent TTS must not cost the song
-            spoken = self.tts.synth(text, self.cat())
-        except Exception as exc:  # noqa: BLE001
-            log.warning("song intro: %s", exc)
-            return
-        if spoken:
-            self.face.clip(spoken[0], "speech", piper_text.plain(text), 0, spoken[1], "joie")
 
     def step(self, delta: int) -> tuple[dict | None, bool]:
         """Previous (-1) / next (+1): back and forth through the songs sung, then a random one past the end.
