@@ -11,7 +11,7 @@ Role 1 · the screen. Same protocol as the ESP32 later; the web page is just one
   POST /take    {"client": "…"}                     this page talks now; the others fall silent (event "take")
   POST /lang    {"lang": "en|fr"}                   the language Eli speaks (event "lang"; ELI_LANG in .env, auto by default)
   GET  /events                                      SSE stream to the page
-  GET  /clips/<id>, /stems/<hash>.wav               audio bytes (/clips/<id>?compat=1: converted to MP3;
+  GET  /clips/<id>, /stems/<hash>.wav               audio bytes (/clips/<id>?compat=1: converted to AAC;
                                                     /stems: the isolated voice, partial while it is computed)
 Role 2 · the brain (brain.py), which only talks to the screen through this protocol:
   POST /brain/listen  body = mic WAV                → transcription → answer → voice
@@ -22,6 +22,8 @@ Role 2 · the brain (brain.py), which only talks to the screen through this prot
   POST /brain/meow                                  a meow (cat faces)
   POST /brain/brief                                 the morning brief: date, weather (BRIEF_CITY), a word for you
   POST /brain/hotword  body = 16 kHz mono WAV       always-on listening: is it "Eli, …"? (see hotword.py)
+  POST /key  {"groq": "gsk_…"}                     the Groq key from Settings: checked with Groq, kept in the .env
+             {"llm_url", "llm_model", "llm_key"}    or a local OpenAI-style LLM (checked on /models); llm_url "" = Groq
   POST /music/setup  {"url","user","password"}      Navidrome access (checked, only a token is kept); /music/forget
   GET  /api/status, /api/voices, /api/memory        state (incl. "lang", "lang_setting"), voices (POST /voice {"id"}), memories
   GET  /api/music                                   {"configured","url","user","server"}
@@ -52,6 +54,7 @@ import sys
 import threading
 import time
 import urllib.parse
+import urllib.request
 import uuid
 import wave
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -61,6 +64,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from brain import Brain, FaceClient  # noqa: E402
 import devlog  # noqa: E402
 import genre  # noqa: E402
+import keys  # noqa: E402
 import lyrics  # noqa: E402
 from hotword import Hotword, command  # noqa: E402
 from navidrome import MusicError, Navidrome  # noqa: E402
@@ -73,11 +77,12 @@ RING = devlog.Ring()  # the last log lines, for developer mode (GET /api/logs)
 logging.getLogger().addHandler(RING)
 mimetypes.add_type("audio/wav", ".wav")  # otherwise the brain's clips are stored as .bin
 
-ROOT = Path(__file__).resolve().parent.parent
-VERSION = devlog.version(ROOT)
+ROOT = Path(__file__).resolve().parent.parent  # the code (read-only inside the Mac app)
+DATA = Path(os.environ.get("ELI_DATA") or ROOT)  # what Eli writes: .env, memory, voices, cache, local/
+VERSION = os.environ.get("ELI_VERSION") or devlog.version(ROOT)  # the app says it: no git call (it would pop Xcode's installer)
 BOOT = uuid.uuid4().hex[:8]  # log lines are numbered from 1 again after a restart
 WEB = ROOT / "web"
-CACHE = ROOT / "cache"
+CACHE = DATA / "cache"
 MAX_AUDIO = 150 * 1024 * 1024
 MAX_JSON = 64 * 1024
 CACHE_BYTES = 400 * 1024 * 1024
@@ -111,12 +116,12 @@ DEFAULTS = {
     "SAY_VOICE": "Thomas",
     "SEPARATOR_MODEL": "voices/Kim_Vocal_2.onnx",
     "FACE_URL": "",
-    "PERSONA_FILE": str(ROOT / "persona.txt"),
-    "MEMORY_DIR": str(ROOT / "memory"),
+    "PERSONA_FILE": str(DATA / "persona.txt"),
+    "MEMORY_DIR": str(DATA / "memory"),
 }
 
 
-def load_config(env_file: Path = ROOT / ".env") -> dict:
+def load_config(env_file: Path = DATA / ".env") -> dict:
     cfg = dict(DEFAULTS)
     if env_file.is_file():
         for line in env_file.read_text("utf-8").splitlines():
@@ -144,15 +149,15 @@ FFPROBE = shutil.which("ffprobe") or (str(Path(FFMPEG).with_name("ffprobe")) if 
 _compat_lock = threading.Lock()
 
 
-def compat_mp3(src: Path) -> Path:
-    """MP3 copy of a sound the browser can't decode (Apple's ALAC m4a, for example)."""
-    out = src.with_name(src.stem + ".compat.mp3")
+def compat_audio(src: Path) -> Path:
+    """AAC copy of a sound the browser can't decode (Apple's ALAC m4a in Chrome, for example)."""
+    out = src.with_name(src.stem + ".compat.m4a")
     with _compat_lock:  # ponytail: one global lock, one conversion at a time; per file if it becomes common
         if not out.exists():
             if not FFMPEG:
                 raise RuntimeError("ffmpeg not found")
             tmp = out.with_suffix(".part")
-            cmd = [FFMPEG, "-v", "error", "-y", "-i", str(src), "-vn", "-c:a", "libmp3lame", "-q:a", "2", "-f", "mp3", str(tmp)]
+            cmd = [FFMPEG, "-v", "error", "-y", "-i", str(src), "-vn", "-c:a", "aac", "-b:a", "192k", "-f", "ipod", str(tmp)]
             subprocess.run(cmd, check=True, capture_output=True, timeout=300)
             tmp.replace(out)
     return out
@@ -235,10 +240,26 @@ class Clips:
         return found if found and found[1].exists() else None
 
 
+SEPARATOR_URL = "https://github.com/TRvlvr/model_repo/releases/download/all_public_uvr_models/Kim_Vocal_2.onnx"
+
+
+def fetch_separator(cfg: dict) -> bool:
+    """Downloads the default singing model (~65 MB) if it's missing; SEPARATOR_MODEL=off or another model: nothing."""
+    model = DATA / DEFAULTS["SEPARATOR_MODEL"]
+    if cfg["SEPARATOR_MODEL"] != DEFAULTS["SEPARATOR_MODEL"] or model.exists() or not FFMPEG:
+        return False
+    log.info("downloading the singing model (~65 MB)…")
+    model.parent.mkdir(parents=True, exist_ok=True)
+    tmp = model.with_suffix(".part")
+    urllib.request.urlretrieve(SEPARATOR_URL, tmp)
+    tmp.replace(model)
+    return True
+
+
 def make_stems(cfg: dict, on_ready, on_progress) -> Stems | None:
     """Voice separation, if its model and ffmpeg are there; otherwise he dances without singing."""
     model = Path(cfg["SEPARATOR_MODEL"])
-    model = model if model.is_absolute() else ROOT / model
+    model = model if model.is_absolute() else DATA / model
     if not (FFMPEG and model.exists()):
         log.warning("singing disabled: %s", "ffmpeg not found" if not FFMPEG else f"model missing ({model.name})")
         return None
@@ -268,13 +289,23 @@ class App:
         self.hub.state["lang"] = default_lang(cfg)
         lang = lambda: self.hub.state["lang"]  # noqa: E731
         self.clips = Clips(CACHE / "clips")
-        self.tts = tts or make_tts(cfg, ROOT, lang())
+        self.tts = tts or make_tts(cfg, DATA, lang())
         self.stems = make_stems(cfg, self._stem_ready, self._stem_progress) if with_stems else None
-        self.music = Navidrome(ROOT / "local" / "navidrome.json", cfg)
+        if with_stems and not self.stems:
+            threading.Thread(target=self._fetch_singer, daemon=True).start()
+        self.music = Navidrome(DATA / "local" / "navidrome.json", cfg)
         self.brain = Brain(cfg, self.tts, FaceClient(cfg.get("FACE_URL") or f"http://127.0.0.1:{port}"), self.hub.publish,
                            lambda: self.hub.state["theme"], self.music, lang)
-        self.hotword = Hotword(ROOT / "voices", lang)
+        self.hotword = Hotword(DATA / "voices", lang)
         self.sync_voice()  # the chosen voice of this language may still need downloading
+
+    def _fetch_singer(self) -> None:
+        try:
+            if fetch_separator(self.cfg):
+                self.stems = make_stems(self.cfg, self._stem_ready, self._stem_progress)
+                self.hub.publish("info", self.status())  # Settings › Engine: he sings now
+        except OSError as exc:
+            log.warning("no singing model: %s", exc)
 
     def _stem_ready(self, clip_id: str, sha: str, error: str | None) -> None:
         if error:
@@ -322,6 +353,7 @@ class App:
             "tts": self.tts.name,
             "stt": self.cfg["STT_PROVIDERS"],
             "llm": self.cfg["LLM_MODEL"] if self.brain.has_llm() else None,
+            "llm_url": self.cfg.get("LLM_URL", ""),  # an address, not a secret: Settings shows which brain is plugged
             "stems": bool(self.stems),
             "turn": self.brain.turn,
             "version": VERSION,  # a page that (re)connects knows which clips are stale
@@ -448,7 +480,7 @@ class Handler(BaseHTTPRequestHandler):
             meta, file = found
             if urllib.parse.urlsplit(self.path).query == "compat=1":  # the page couldn't decode it
                 try:
-                    return self._send(200, compat_mp3(file).read_bytes(), "audio/mpeg")
+                    return self._send(200, compat_audio(file).read_bytes(), "audio/mp4")
                 except (OSError, RuntimeError, subprocess.SubprocessError) as exc:
                     log.warning("can't convert %s: %s", file.name, exc)
                     return self._error(415, "unreadable format, and the MP3 conversion failed")
@@ -518,6 +550,7 @@ class Handler(BaseHTTPRequestHandler):
             "/brain/meow": self._post_meow,
             "/brain/brief": self._post_brief,
             "/brain/hotword": self._post_hotword,
+            "/key": self._post_key,
             "/music/setup": self._post_music_setup,
             "/music/forget": self._post_music_forget,
             "/music/ping": self._post_music_ping,
@@ -740,6 +773,42 @@ class Handler(BaseHTTPRequestHandler):
             return self._error(400, str(exc))
         self.app.hub.publish("music", status)
         self._json(200, {"ok": True, **status})
+
+    def _post_key(self, _query: dict) -> None:
+        """{"groq": "gsk_…"}, or {"llm_url", "llm_model"?, "llm_key"?} for a local OpenAI-style LLM ("llm_url": "" = Groq)."""
+        data = self._json_body()
+        if data is None:
+            return
+        fields = {k: data.get(k) for k in ("groq", "llm_url", "llm_model", "llm_key") if k in data}
+        if not fields or not all(isinstance(v, str) for v in fields.values()):
+            return self._error(400, "groq or llm_url expected")
+        fields = {k: v.strip() for k, v in fields.items()}
+        try:
+            if "groq" in fields:
+                keys.check_groq(fields["groq"])
+                updates = {"GROQ_API_KEY": fields["groq"]}
+            elif not fields["llm_url"]:  # back to Groq
+                updates = {"LLM_URL": "", "LLM_API_KEY": "", "LLM_MODEL": DEFAULTS["LLM_MODEL"],
+                           "LLM_FALLBACK_MODEL": DEFAULTS["LLM_FALLBACK_MODEL"]}
+            else:
+                models = keys.check_llm(fields["llm_url"], fields.get("llm_key", ""))
+                model = fields.get("llm_model") or (models[0] if models else "")
+                if not model or not keys.ENV_VALUE.fullmatch(model):
+                    raise keys.BadKey("which model? the server lists none")
+                updates = {"LLM_URL": fields["llm_url"], "LLM_API_KEY": fields.get("llm_key", ""), "LLM_MODEL": model,
+                           "LLM_FALLBACK_MODEL": ""}  # Groq's fallback name means nothing to a local server
+        except keys.BadKey as exc:
+            return self._error(400, str(exc))
+        try:
+            for name, value in updates.items():
+                keys.save(DATA / ".env", name, value)
+        except OSError as exc:  # Docker mounts the .env read-only: it's edited on the host there
+            log.warning("brain settings not saved: %s", exc)
+            return self._error(500, "the .env can't be written here: set it in the server's .env")
+        self.app.cfg.update(updates)  # the brain shares this dict: he thinks with it from the next sentence on
+        log.info("brain settings saved: %s", ", ".join(updates))
+        self.app.hub.publish("info", self.app.status())
+        self._json(200, {"ok": True, **self.app.status()})
 
     def _post_music_forget(self, _query: dict) -> None:
         self.app.music.forget()

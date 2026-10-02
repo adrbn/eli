@@ -421,6 +421,7 @@ class Brain:
     def _answer(self, turn: int, user_text: str) -> None:
         log.info("heard: %s", user_text[:300])
         if not self.has_llm():
+            self.publish("setup", {"need": "groq"})  # the page opens Settings at the key field
             self._say(turn, self.line("no_brain"), [])
             return
         self.publish("brain", {"stage": "llm"})

@@ -135,6 +135,9 @@ function renderInfo() {
     [t('Chant'), info.stems ? t('MDX-Net, voix isolée en direct') : t('modèle de voix absent : il danse sans chanter')],
     ['Version', info.version || '?'],
   ];
+  const llm = $('#s-llm');
+  if (llm && info.llm_url && !llm.llm_url.value) [llm.llm_url.value, llm.llm_model.value] = [info.llm_url, info.llm || ''];
+  if (llm) $('#s-llm-off').hidden = !info.llm_url;
   el.info.replaceChildren(...rows.flatMap(([k, v]) => {
     const dt = document.createElement('dt'), dd = document.createElement('dd');
     dt.textContent = k;
@@ -188,6 +191,7 @@ function connect() {
     else if (s.theme !== theme.id) post('/theme', { id: theme.id, from: CLIENT }).catch(report);
     relang(s.lang_setting);
     renderInfo();
+    if (!s.llm && !keyAsked) askKey(); // premier lancement : sans clé, il n'entend ni ne pense
     renderStatus();
     // la page dit sa langue au serveur (voix, présentation, point du matin) avant qu'Eli ne parle ; un vieux serveur répond 404
     (MIRROR ? Promise.resolve() : post('/lang', { lang }).catch(() => {})).finally(() => {
@@ -200,7 +204,8 @@ function connect() {
   on('genre', (d) => clipLooks.set(d.id, d.look));
   on('lyrics', (d) => clipLyrics.set(d.id, d));
   on('take', (d) => { if (d.client !== CLIENT) yieldTo() });
-  on('setup', (d) => { if (d.need === 'navidrome') askMusic() });
+  on('setup', (d) => { if (d.need === 'navidrome') askMusic(); else if (d.need === 'groq') askKey() });
+  on('info', (s) => { info = { ...info, ...s }; renderInfo() });
   on('voice', (c) => {
     renderVoices(c);
     if (!c.busy) fetch('/api/status').then((r) => r.json()).then((s) => { info = s; renderInfo() }).catch(report);
@@ -461,6 +466,45 @@ function askMusic() {
   form.classList.add('ask');
   note(t('Donne-moi l’accès à ta bibliothèque Navidrome.'));
 }
+
+// La clé Groq, tapée dans Réglages → Moteur (l'app Mac n'a pas de .env à éditer) : le serveur la vérifie et la garde.
+let keyAsked = false;
+function askKey() {
+  keyAsked = true;
+  if (BARE || MIRROR || passive) return;
+  if (el.settings.hidden) togglePanel(el.settings);
+  const form = $('#s-key');
+  form.scrollIntoView({ block: 'center' });
+  form.classList.remove('ask');
+  void form.offsetWidth; // relance l'animation
+  form.classList.add('ask');
+}
+
+$('#s-key').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const f = e.currentTarget, out = $('#s-key-out');
+  out.textContent = t('Je vérifie la clé…');
+  saveBrain({ groq: f.groq.value.trim() }, out, () => { f.groq.value = ''; return t('Clé enregistrée.') });
+});
+
+async function saveBrain(body, out, done) {
+  try {
+    info = { ...info, ...(await post('/key', body)) };
+    out.textContent = done();
+    renderInfo();
+  } catch (err) {
+    out.textContent = err.message;
+  }
+}
+
+$('#s-llm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const f = e.currentTarget, out = $('#s-llm-out');
+  out.textContent = t('Je contacte le serveur…');
+  const body = { llm_url: f.llm_url.value.trim(), llm_model: f.llm_model.value.trim(), llm_key: f.llm_key.value.trim() };
+  saveBrain(body, out, () => { f.llm_key.value = ''; return t('Branché sur {model}.', { model: info.llm }) });
+});
+$('#s-llm-off').addEventListener('click', () => saveBrain({ llm_url: '' }, $('#s-llm-out'), () => t('De retour sur Groq.')));
 
 // --- panneaux et dock -----------------------------------------------------------------------
 function togglePanel(panel) {

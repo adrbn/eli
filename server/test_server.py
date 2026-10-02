@@ -176,8 +176,46 @@ class ServerTest(unittest.TestCase):
         code, _ = self.post("/voice", json.dumps({"id": "../../etc"}).encode())
         self.assertEqual(code, 400)
 
+    def test_brain_settings_local_llm_then_back_to_groq(self):
+        import app as app_module
+
+        class Models(BaseHTTPRequestHandler):
+            def do_GET(self):
+                body = json.dumps({"data": [{"id": "qwen3-8b"}]}).encode() if self.path == "/v1/models" else b"{}"
+                self.send_response(200 if self.path == "/v1/models" else 404)
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *_):
+                pass
+
+        fake = ThreadingHTTPServer(("127.0.0.1", 0), Models)
+        threading.Thread(target=fake.serve_forever, daemon=True).start()
+        saved_cfg, saved_data = dict(self.server.app.cfg), app_module.DATA
+        with tempfile.TemporaryDirectory() as tmp:
+            app_module.DATA = Path(tmp)  # never the real .env
+            try:
+                code, body = self.post("/key", json.dumps({"groq": "sk-not-groq"}).encode())
+                self.assertEqual((code, body["error"]), (400, "not a Groq key (gsk_…)"))
+                url = f"http://127.0.0.1:{fake.server_address[1]}/v1"
+                code, body = self.post("/key", json.dumps({"llm_url": url}).encode())
+                self.assertEqual((code, body["llm"], body["llm_url"]), (200, "qwen3-8b", url))  # first model listed
+                env = (Path(tmp) / ".env").read_text()
+                self.assertIn(f"LLM_URL={url}\n", env)
+                self.assertEqual((Path(tmp) / ".env").stat().st_mode & 0o777, 0o600)
+                code, body = self.post("/key", json.dumps({"llm_url": "http://x/v1\nGROQ_API_KEY=evil"}).encode())
+                self.assertEqual(code, 400)
+                code, body = self.post("/key", json.dumps({"llm_url": ""}).encode())
+                self.assertEqual((code, body["llm"], body["llm_url"]), (200, None, ""))  # no Groq key in tests: no brain
+                self.assertNotIn("evil", (Path(tmp) / ".env").read_text())
+            finally:
+                app_module.DATA = saved_data
+                self.server.app.cfg.clear()
+                self.server.app.cfg.update(saved_cfg)
+                fake.shutdown()
+
     @unittest.skipUnless(FFMPEG, "no ffmpeg")
-    def test_undecodable_clip_is_converted_to_mp3(self):
+    def test_undecodable_clip_is_converted_to_aac(self):
         with tempfile.TemporaryDirectory() as tmp:
             src, alac = Path(tmp) / "a.wav", Path(tmp) / "a.m4a"
             src.write_bytes(tiny_wav(0.5))
@@ -185,8 +223,11 @@ class ServerTest(unittest.TestCase):
             code, meta = self.post("/clip?kind=music&name=a.m4a", alac.read_bytes(), "audio/mp4")
         self.assertEqual(code, 200)
         with urllib.request.urlopen(self.base + meta["url"] + "?compat=1") as r:  # the ALAC Chrome refuses
-            self.assertEqual(r.headers["Content-Type"], "audio/mpeg")
-            self.assertGreater(len(r.read()), 500)
+            self.assertEqual(r.headers["Content-Type"], "audio/mp4")
+            body = r.read()
+        self.assertGreater(len(body), 500)
+        probe = subprocess.run([FFMPEG, "-v", "error", "-i", "-", "-f", "null", "-"], input=body, capture_output=True)
+        self.assertEqual(probe.returncode, 0, probe.stderr)  # a real, decodable file
 
     def test_speak_goes_through_the_face_protocol(self):
         code, body = self.post("/brain/speak", json.dumps({"text": "Bonjour toi."}).encode())

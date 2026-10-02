@@ -97,7 +97,7 @@ export class Player {
   }
 
   async load(item) {
-    item.buffer = await this.decode(item.meta.url) // ALAC & co : le serveur le convertit en MP3
+    item.buffer = await this.decode(item.meta.url) // ALAC & co : le serveur le convertit en AAC
       .catch(() => this.decode(`${item.meta.url}?compat=1`));
     item.track = await analyze(item.kind, await to16k(item.buffer));
     if (item.meta.phonemes) Object.assign(item.track, visemeTrack(item.meta.phonemes, item.track.n));

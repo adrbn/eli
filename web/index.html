@@ -472,7 +472,29 @@
   </div>
 
   <h3>Moteur</h3>
-  <div class="group"><div class="item"><dl class="info" id="info"></dl></div></div>
+  <div class="group">
+    <div class="item"><dl class="info" id="info"></dl></div>
+    <form class="item col music-form" id="s-key">
+      <span class="item-text"><b>Clé Groq</b><small>Gratuite. C’est elle qui lui permet de t’entendre et de réfléchir. Elle reste sur cette machine.</small></span>
+      <input name="groq" type="password" placeholder="gsk_…" autocomplete="off" spellcheck="false" required aria-label="Clé Groq">
+      <div class="row">
+        <button class="btn go" type="submit">Enregistrer</button>
+        <a class="btn" href="https://console.groq.com/keys" target="_blank" rel="noopener" style="text-decoration:none">Créer une clé</a>
+        <output class="ping" id="s-key-out"></output>
+      </div>
+    </form>
+    <form class="item col music-form" id="s-llm">
+      <span class="item-text"><b>Ton propre LLM</b><small>Ollama, LM Studio, llama.cpp, mlx_lm… : tout serveur compatible OpenAI. La clé Groq reste utile pour qu’il t’entende ; sans elle, écris-lui.</small></span>
+      <input name="llm_url" type="url" placeholder="http://127.0.0.1:11434/v1" autocomplete="off" spellcheck="false" required aria-label="Adresse du serveur">
+      <input name="llm_model" placeholder="Modèle (vide : le premier proposé)" autocomplete="off" spellcheck="false" aria-label="Modèle">
+      <input name="llm_key" type="password" placeholder="Clé, si le serveur en demande une" autocomplete="off" aria-label="Clé du serveur">
+      <div class="row">
+        <button class="btn go" type="submit">Brancher</button>
+        <button class="btn" id="s-llm-off" type="button" hidden>Revenir à Groq</button>
+        <output class="ping" id="s-llm-out"></output>
+      </div>
+    </form>
+  </div>
 
   <h3>Développeur</h3>
   <div class="group">
