@@ -11,12 +11,14 @@
     "er": "min(hw, hh)*0.6",
     "ex": "1 + s*0.4 + gx*0.125",
     "ey": "0.38 + gy*0.1 - bo*0.0625",
-    "mw": "0.075 + w*0.09 - r*0.045",
-    "mh": "max(minH, 0.022 + o*0.075 + r*0.012)"
+    "mw": "0.075 + w*0.09 - r*0.03",
+    "mh": "max(minH, 0.022 + o*0.085 + r*0.03)",
+    "k": "min(mw, mh)",
+    "bend": "hap*0.03*max(0, 1 - o*2.5)"
   },
   "shapes": [
-    { "rect": [1, 0.82, "mw", "mh"], "radius": "min(mw, mh)*(0.7 + r*0.3)" },
-    { "cut": { "region": "abs(y - 0.82) < 0.018" }, "when": "t > 0.5 && mh > 0.05" },
+    { "region": "box(x - 1, (y - 0.82 + bend*sq((x - 1)/mw)), mw, mh, (y - 0.82 + bend*sq((x - 1)/mw)) < 0 ? k*(0.3 + r*0.7) : k)*(1 - r) + r*(hypot((x - 1)/mw, (y - 0.82 + bend*sq((x - 1)/mw))/mh) - 1)*k <= 0" },
+    { "cut": { "region": "abs(y - 0.82 + bend*sq((x - 1)/mw)) < 0.018" }, "when": "t > 0.5 && mh > 0.05" },
     { "mirror": true, "group": [
       { "rect": ["ex", "ey", "hw", "hh"], "radius": "er",
         "clip": { "outside": { "region": "ang && y - (ey - hh) < hh*(ang > 0 ? ang*1.1*clamp((1 - s*(x - ex)/hw)/2, 0, 1) : -ang*0.9*(1 - clamp((1 - s*(x - ex)/hw)/2, 0, 1)))" } } },
