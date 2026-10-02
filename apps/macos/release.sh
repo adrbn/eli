@@ -3,14 +3,14 @@
 #   ./release.sh 0.1.0             everything, then asks before tagging and publishing on GitHub
 #   ./release.sh 0.1.0 --dry-run   (or SKIP_NOTARIZE=1) no notarization, no publishing, git checks only warn
 # Release notes: notes/<version>.md if it exists, else commit subjects since the previous tag.
-# Needs: the Developer ID certificate, the notarytool profile "haze" (NOTARY_PROFILE=… for another),
+# Needs: the Developer ID certificate, the notarytool profile "eli" (NOTARY_PROFILE=… for another),
 # the Sparkle EdDSA key in the login keychain (account "eli"), and gh logged in.
 set -euo pipefail
 cd "$(dirname "$0")"
 VERSION="${1:-}"
 DRY="${SKIP_NOTARIZE:-}"; [ "${2:-}" = --dry-run ] && DRY=1
 TEAM="${TEAM:-2TWQF4T93E}"
-NOTARY_PROFILE="${NOTARY_PROFILE:-haze}"
+NOTARY_PROFILE="${NOTARY_PROFILE:-eli}"
 TAG="v$VERSION"
 OUT="$(pwd)/build/release"
 TMP="$OUT/tmp"
