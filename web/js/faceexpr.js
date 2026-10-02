@@ -13,6 +13,7 @@ const FUNCS = {
   hypot: [2, Math.hypot], sqrt: [1, Math.sqrt], sq: [1, (a) => a ** 2], box: [5, box],
 };
 const CONSTS = { pi: Math.PI };
+const MAX_DEPTH = 32; // nested parentheses, ternaries and unary signs: the ESP32 evaluator has a small stack
 const BIN = [['||'], ['&&'], ['==', '!='], ['<', '<=', '>', '>='], ['+', '-'], ['*', '/']];
 const OPS = {
   '||': (a, b) => (e) => (a(e) || b(e) ? 1 : 0), '&&': (a, b) => (e) => (a(e) && b(e) ? 1 : 0),
@@ -44,20 +45,26 @@ export function compileExpr(src, names) {
   if (typeof src === 'number' && Number.isFinite(src)) return () => src;
   if (typeof src !== 'string') throw new Error('a formula is a string or a number');
   const toks = tokenize(src);
-  let i = 0;
+  let i = 0, depth = 0;
   const fail = (msg) => { throw new Error(msg) };
   const show = (t) => t.op ?? t.name ?? String(t.num);
   const take = (op) => (toks[i]?.op === op ? (i++, true) : false);
   const expect = (op) => take(op) || fail(toks[i] ? `expected '${op}' at ${toks[i].at}` : `expected '${op}' at the end`);
 
-  const ternary = () => {
+  const nested = (parse) => () => {
+    if (++depth > MAX_DEPTH) fail(`nested deeper than ${MAX_DEPTH}`);
+    const fn = parse();
+    depth--;
+    return fn;
+  };
+  const ternary = nested(() => {
     const c = level(0);
     if (!take('?')) return c;
     const a = ternary();
     expect(':');
     const b = ternary();
     return (e) => (c(e) ? a(e) : b(e));
-  };
+  });
   const level = (k) => {
     if (k === BIN.length) return unary();
     let left = level(k + 1);
@@ -67,11 +74,11 @@ export function compileExpr(src, names) {
     }
     return left;
   };
-  const unary = () => {
+  const unary = nested(() => {
     if (take('-')) { const a = unary(); return (e) => -a(e) }
     if (take('!')) { const a = unary(); return (e) => (a(e) ? 0 : 1) }
     return primary();
-  };
+  });
   const primary = () => {
     const t = toks[i++] ?? fail('unexpected end');
     if (t.num !== undefined) { const v = t.num; return () => v }

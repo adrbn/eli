@@ -55,4 +55,7 @@ test('bad formulas are rejected with a clear message', () => {
   bad('(1', "expected ')' at the end");
   bad('$', "unexpected '$' at 0");
   bad(null, 'a formula is a string or a number');
+  bad(`${'('.repeat(6000)}1${')'.repeat(6000)}`, 'nested deeper than 32');
+  bad(`${'-'.repeat(40)}1`, 'nested deeper than 32');
+  assert.equal(run(`${'('.repeat(10)}1${')'.repeat(10)}`), 1);
 });
