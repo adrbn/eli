@@ -116,9 +116,9 @@
     body.playing:is(:not([data-layout]), [data-layout="window"]) .caption.music { display: block; visibility: hidden; } /* le lecteur le dit déjà : il garde sa place, sans faire monter */
     body:is(:not([data-layout]), [data-layout="window"]):not(.sung) .now { margin-top: -20px; } /* sans paroles, la barre est fixe : rien sous le visage */
     body.playing:is(:not([data-layout]), [data-layout="window"]) { --chrome: 250px; }
-    body.sung:is(:not([data-layout]), [data-layout="window"]) { --chrome: 380px; } /* des paroles à lire : il monte et rétrécit pour elles */
-    body.sung:is(:not([data-layout]), [data-layout="window"]) .stage { padding-bottom: 150px; }
+    /* des paroles à lire : même taille, il monte juste assez pour elles ; la barre et le dock passent dessus le temps qu'on s'en sert */
     body.sung:is(:not([data-layout]), [data-layout="window"]) .stage::before { height: 0; margin-bottom: -20px; }
+    body.sung:not(.captioned):is(:not([data-layout]), [data-layout="window"]) .caption { display: none; }
     body:is(:not([data-layout]), [data-layout="window"]) .now { animation: none; } /* un transform ici décrocherait la barre fixe */
     body:is(:not([data-layout]), [data-layout="window"]) :is(.now-lyrics, .now-bar) { animation: rise .5s var(--ease); }
     body:is(:not([data-layout]), [data-layout="window"]) .now-bar { position: fixed; left: 0; right: 0; bottom: 86px; margin: auto; width: min(640px, calc(100vw - 32px)); z-index: 4; }
@@ -280,8 +280,7 @@
   /* --- dans une app (Mac, iPhone) : la fenêtre est déjà l'appareil, pas de cadre dans le cadre ---- */
   body.app .bezel { padding: 0; background: none; box-shadow: none; }
   body.app #screen { border-radius: 10px; }
-  body.app-mac[data-layout="window"] .stage { padding-top: 40px; } /* les feux de la fenêtre */
-  body.app-mac[data-layout="window"]:not(.sung) .stage { padding-bottom: 40px; } /* autant en bas : centré dans la fenêtre */
+  body.app-mac[data-layout="window"] .stage { padding-block: 40px; } /* les feux de la fenêtre, et autant en bas : centré dans la fenêtre */
 
   /* --- le visage seul : ?bare=1, ou le widget flottant de l'app Mac --------------------------- */
   body:is(.bare, [data-layout="widget"]) .stage { padding: 0; }
