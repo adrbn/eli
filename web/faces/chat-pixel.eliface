@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "id": "chat-pixel",
+  "name": "Chat pixel",
+  "author": "adrbn",
+  "license": "MIT",
+  "space": "wide",
+  "shift": [0, "bo*0.04"],
+  "vars": {
+    "line": "max(0.017, minH*0.6)",
+    "tw": "mod(T + (s > 0 ? 3.1 : 0), 7.3) < 0.18 ? 0.03 : 0",
+    "tipx": "1 + s*(0.47 + tw)",
+    "tipy": "0.05 + tw",
+    "inx": "1 + s*0.16",
+    "outx": "1 + s*0.56",
+    "ex": "1 + s*0.25 + gx*0.06",
+    "ey": "0.55 + gy*0.05",
+    "rx": "0.095*sc",
+    "ry": "max(0.018, 0.12*sc*open)",
+    "px": "ex + clamp(0.5 + gx*0.5, 0, 1)*rx*0.9 - rx*0.45",
+    "py": "ey + clamp(0.5 + gy*0.5, 0, 1)*ry*0.7 - ry*0.45",
+    "mmw": "0.035 + w*0.03 - r*0.015",
+    "mmh": "max(minH, 0.012 + o*0.06)"
+  },
+  "shapes": [
+    { "rect": [1, "0.745 + mmh", "mmw", "mmh"], "radius": "min(mmw, mmh)*0.9", "when": "o > 0.08" },
+    { "mirror": true, "group": [
+      { "region": "y >= 0.705 && abs(hypot(x - 1 - s*0.035, y - 0.71) - 0.035) < line*0.55" }
+    ]},
+    { "triangle": [0.97, 0.655, 1.03, 0.655, 1, 0.685] },
+    { "mirror": true, "group": [
+      { "segment": ["1 + s*0.5", 0.66, "1 + s*0.8", 0.6], "stroke": "line*0.5" },
+      { "segment": ["1 + s*0.5", "0.66 + 0.07", "1 + s*0.8", "0.6 + 0.12"], "stroke": "line*0.5" },
+      { "region": "sq((x - 1 - s*0.42)/0.08) + sq((y - 0.72)/0.045) <= 1", "dots": true },
+      { "ellipse": ["ex", "ey", "rx", "ry"], "when": "!(hap > 0.5)" },
+      { "cut": { "region": "hypot(x - px, y - py) < max(0.03, minH*0.75)" }, "when": "!(hap > 0.5) && ry > 0.06",
+        "clip": { "inside": { "ellipse": ["ex", "ey", "rx", "ry"] } } },
+      { "region": "abs(hypot((x - ex)/rx, (y - ey - 0.04)/(ry*0.9)) - 1) < 0.35 && y < ey + 0.03", "when": "hap > 0.5" },
+      { "triangle": ["tipx - s*0.01", "tipy + 0.09", "inx + s*0.07", "0.2 + 0.01", "outx - s*0.04", "0.37 - 0.06"], "dots": true,
+        "clip": { "outside": { "region": "hypot((x - 1)/0.6, (y - 0.58)/0.4) <= 1.05" } } },
+      { "segment": ["tipx", "tipy", "inx", 0.2], "stroke": "line*0.75",
+        "clip": { "outside": { "region": "hypot((x - 1)/0.6, (y - 0.58)/0.4) <= 1" } } },
+      { "segment": ["tipx", "tipy", "outx", 0.37], "stroke": "line*0.75",
+        "clip": { "outside": { "region": "hypot((x - 1)/0.6, (y - 0.58)/0.4) <= 1" } } }
+    ]},
+    { "ellipse": [1, 0.58, 0.6, 0.4], "stroke": "line*0.75" }
+  ],
+  "anchors": {
+    "exL": "0.75 + gx*0.06", "exR": "1.25 + gx*0.06", "ey": "0.55 + gy*0.05",
+    "ew": "0.12*sc", "eh": "0.12*sc", "crown": "0.2 - bo*0.04", "hw": 0.64
+  }
+}
