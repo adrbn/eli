@@ -137,7 +137,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             } catch {
                 return show(L("Impossible de lancer le serveur : ", "Could not start the server: ") + error.localizedDescription)
             }
-            show(L("Eli se réveille…", "Waking Eli up…"))
+            show()
             for _ in 0..<600 {  // up to 5 min: the first run downloads ~125 MB of models
                 if await alive() { return load() }
                 if server?.isRunning == false {
@@ -229,12 +229,70 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         return web
     }
 
-    func show(_ message: String) {
-        web.loadHTMLString("""
-            <body style="margin:0;height:100vh;display:grid;place-items:center;background:#000;color:#999;
-            font:15px -apple-system;text-align:center">\(message)</body>
-            """, baseURL: nil)
+    // While the server starts: Eli asleep on his 128×64 OLED (the page's default "pixel" face, same size and place),
+    // pixel Z's rising. Words only for a problem, in his pixel font. The page then takes over and he opens his eyes.
+    func show(_ message: String = "") {
+        web.loadHTMLString(#"""
+            <!doctype html><meta charset="utf-8"><title>Eli</title>
+            <style>\#(pixelFont)
+            html,body{margin:0;height:100%;background:#000;overflow:hidden}
+            body{display:grid;place-content:center;justify-items:center;gap:28px;padding:40px 16px 110px;box-sizing:border-box}
+            canvas{display:block;image-rendering:pixelated}
+            p{margin:0;max-width:34ch;text-align:center;font:22px/33px px,ui-monospace,monospace;color:#d6eadb}
+            p:empty{display:none}
+            @media (max-width:479px){body{padding:0;gap:12px}p{font-size:11px;line-height:16px}}
+            </style>
+            <canvas role="img" aria-label="\#(L("Eli se réveille", "Eli is waking up"))"></canvas><p>\#(message)</p>
+            <script>
+            const cv = document.querySelector('canvas'), ctx = cv.getContext('2d'), still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+            const off = new OffscreenCanvas(128, 64), o = off.getContext('2d'), img = o.createImageData(128, 64), px = new Uint32Array(img.data.buffer);
+            const Z = [[1,1,1,1,1],[0,0,0,1,0],[0,0,1,0,0],[0,1,0,0,0],[1,1,1,1,1]];  // a 5×5 z, the second one twice as big
+            const box = (x, y, w, h, r) => { const qx = Math.abs(x) - w + r, qy = Math.abs(y) - h + r; return Math.min(Math.max(qx, qy), 0) + Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) - r; };
+            function lit(x, y, b) {  // themes.js pixLit, asleep: eyes shut and lowered, mouth at rest
+              for (const ex of [0.6, 1.4]) if (box(x - ex, y - 0.41, 0.2 * b, 0.03, 0.018) <= 0) return true;
+              return box(x - 1, y - 0.82, 0.075, 0.022, 0.015) <= 0;
+            }
+            function frame(t) {
+              const b = still ? 1 : 1 + Math.sin(t / 1100) * 0.025;  // slow breathing
+              px.fill(0xff000000);
+              for (let j = 0; j < 64; j++) for (let i = 0; i < 128; i++) if (lit((i + 0.5) / 64, (j + 0.5) / 64, b)) px[j * 128 + i] = 0xff86ff46;
+              for (const [k, s] of [[0, 1], [1, 2]]) {  // two Z's, each rising from beside his head and fading out
+                const p = still ? 0.5 : ((t / 3200 + k * 0.5) % 1), x = 105 + k * 8, y = Math.round(18 - p * 12 - k * 6);
+                if (Math.sin(p * Math.PI) < 0.25) continue;
+                Z.forEach((row, r) => row.forEach((on, c) => { if (on) for (let a = 0; a < s; a++) for (let d = 0; d < s; d++) px[(y + r * s + d) * 128 + x + c * s + a] = 0xff86ff46; }));
+              }
+              o.putImageData(img, 0, 0);
+              const small = innerWidth < 480, W = small ? innerWidth : Math.min(innerWidth - 80, (innerHeight - 250) * 2, 1400), r = devicePixelRatio;
+              const w = Math.max(160, W), h = w / 2, s = Math.max(1, Math.floor(Math.min(w * r / 128, h * r / 64)));
+              cv.style.width = w + 'px'; cv.style.height = h + 'px'; cv.width = w * r; cv.height = h * r;
+              const X = (cv.width - 128 * s) >> 1, Y = (cv.height - 64 * s) >> 1;
+              ctx.imageSmoothingEnabled = false;
+              ctx.drawImage(off, X, Y, 128 * s, 64 * s);
+              if (s >= 4) {  // the black gaps between physical pixels, as on the page
+                ctx.fillStyle = 'rgba(0,0,0,.35)'; const lw = Math.max(1, Math.round(s * 0.12));
+                for (let i = 0; i <= 128; i++) ctx.fillRect(X + i * s, Y, lw, 64 * s);
+                for (let j = 0; j <= 64; j++) ctx.fillRect(X, Y + j * s, 128 * s, lw);
+              }
+              if (!still) requestAnimationFrame(frame);
+            }
+            requestAnimationFrame(frame);
+            if (still) addEventListener('resize', () => frame(0));
+            </script>
+            """#, baseURL: nil)
     }
+
+    // Departure Mono (OFL), the page's pixel font, inlined: this page has no server to load it from yet.
+    lazy var pixelFont: String = {
+        let up = Bundle.main.bundleURL.deletingLastPathComponent().deletingLastPathComponent()  // built in place: apps/macos/build
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let dirs = [Bundle.main.resourceURL, defaults.string(forKey: "repoPath").map { URL(fileURLWithPath: $0) }, up]
+        for dir in dirs.compactMap({ $0 }) {
+            if let font = try? Data(contentsOf: dir.appendingPathComponent("web/fonts/DepartureMono-Regular.woff2")) {
+                return "@font-face{font-family:px;src:url(data:font/woff2;base64,\(font.base64EncodedString()))}"
+            }
+        }
+        return ""
+    }()
 
     func isLocal(_ host: String?) -> Bool { host == "127.0.0.1" || host == "localhost" }
 
