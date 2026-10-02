@@ -664,13 +664,19 @@ function renderNow() {
     hostState = state;
     native({ type: 'state', loaded: Boolean(m), singing: Boolean(m) && !paused, title: m ? el.nowTitle.textContent : '' });
   }
-  if (!m) return void (nowKey = '');
+  if (!m) {
+    // fini tout seul (pas coupé) et lecture continue : un autre au hasard (le serveur pioche au-delà de l'historique)
+    if (lastSong && autoplay && !MIRROR && lastSong.dur - lastSong.pos < 1.5) post('/music/next').catch(report); // sans /stop : il peut être en train de parler
+    lastSong = null;
+    return void (nowKey = '');
+  }
   const ly = clipLyrics.get(m.meta.id), key = `${m.meta.id}|${Boolean(ly)}`;
   if (key !== nowKey) {
     nowKey = key;
     renderTitle(m, ly);
   }
   const pos = player.position(m), dur = m.buffer.duration;
+  lastSong = { pos, dur };
   if (ly?.lines?.length) renderLyrics(ly.lines, pos + settings.lead / 1000);
   if (!seeking) {
     el.nowSeek.value = pos / dur;
@@ -681,6 +687,16 @@ function renderNow() {
   el.nowIcon.setAttribute('d', paused ? 'M8 5.5v13l11-6.5z' : 'M9 6v12M15 6v12');
   el.nowPlay.setAttribute('aria-label', paused ? t('Lecture') : 'Pause');
 }
+// ponytail: chaque page ouverte enchaîne de son côté ; deux pages en lecture continue sauteraient deux fois
+let autoplay = store.get('autoplay', false), lastSong = null;
+const autoBtn = $('#now-auto');
+autoBtn.setAttribute('aria-pressed', String(autoplay));
+autoBtn.addEventListener('click', () => {
+  autoplay = !autoplay;
+  store.set('autoplay', autoplay);
+  autoBtn.setAttribute('aria-pressed', String(autoplay));
+  note(autoplay ? t('Lecture continue : j’enchaîne au hasard.') : t('Je m’arrêterai à la fin du morceau.'));
+});
 function toggleMusic() {
   const m = player.music();
   if (m) player.toggle(m);

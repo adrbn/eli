@@ -112,6 +112,10 @@ export const EN = {
   'Aucune': 'None',
   'Musique': 'Music',
   'Bibliothèque': 'Library',
+  'Lecture continue': 'Continuous play',
+  'Lecture continue : un autre morceau au hasard à la fin': 'Continuous play: another random song at the end',
+  'Lecture continue : j’enchaîne au hasard.': 'Continuous play: I’ll keep going at random.',
+  'Je m’arrêterai à la fin du morceau.': 'I’ll stop at the end of the song.',
   'Bibliothèque Navidrome': 'Navidrome library',
   'Branche ta bibliothèque Navidrome (ou tout serveur Subsonic) et demande « Eli, mets du Daft Punk ». Le mot de passe n’est pas gardé, seulement un jeton.':
     'Plug in your Navidrome library (or any Subsonic server) and ask “Eli, play some Daft Punk”. Your password isn’t kept, only a token.',
