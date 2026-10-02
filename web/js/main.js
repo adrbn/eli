@@ -78,7 +78,7 @@ setCustom({
 const el = {
   bezel: $('#bezel'), screen: $('#screen'), caption: $('#caption'), toast: $('#toast'), dock: $('#dock'),
   mic: $('#btn-mic'), chat: $('#chat'), input: $('#chat-input'), status: $('#status'), info: $('#info'),
-  themes: $('#panel-themes'), settings: $('#panel-settings'), music: $('#panel-music'), groups: $('#theme-groups'), custom: $('#custom'),
+  themes: $('#pane-faces'), settings: $('#panel-settings'), music: $('#pane-music'), groups: $('#theme-groups'), custom: $('#custom'),
   drop: $('#drop'), wake: $('#wake'), file: $('#file'), voice: $('#s-voice'), voiceHint: $('#s-voice-hint'),
   now: $('#now'), nowLine: $('#now-line'), nowNext: $('#now-next'), nowTitle: $('#now-title'), nowPlay: $('#now-play'),
   nowIcon: $('#now-icon'), nowSeek: $('#now-seek'), nowTime: $('#now-time'), nowDur: $('#now-dur'), devlog: $('#devlog'),
@@ -448,7 +448,7 @@ function bindSettings() {
   }).catch(report);
   $('#btn-settings').addEventListener('click', loadNotes);
   $('#s-intro').addEventListener('click', () => {
-    togglePanel(el.settings);
+    closePanels();
     startIntro();
   });
   $('#s-forget').addEventListener('click', () => {
@@ -478,7 +478,7 @@ const onboarding = initOnboarding({
 });
 function askMusic() {
   if (BARE) return;
-  if (el.music.hidden) togglePanel(el.music);
+  if (!shown(el.music)) openPane(el.music);
   const form = $('#m-connect');
   form.classList.remove('ask');
   void form.offsetWidth; // relance l'animation
@@ -489,7 +489,7 @@ function askMusic() {
 // La clé Groq, tapée dans Réglages → Moteur (l'app Mac n'a pas de .env à éditer) : le serveur la vérifie et la garde.
 function askKey() {
   if (onboarding.open || BARE || MIRROR || passive) return;
-  if (el.settings.hidden) togglePanel(el.settings);
+  if (!shown($('#pane-brain'))) openPane($('#pane-brain'));
   const form = $('#s-key');
   form.scrollIntoView({ block: 'center' });
   form.classList.remove('ask');
@@ -524,17 +524,45 @@ $('#s-llm').addEventListener('submit', (e) => {
 $('#s-llm-off').addEventListener('click', () => saveBrain({ llm_url: '' }, $('#s-llm-out'), () => t('De retour sur Groq.')));
 
 // --- panneaux et dock -----------------------------------------------------------------------
-function togglePanel(panel) {
-  const open = panel.hidden;
-  closePanels();
-  panel.hidden = !open;
-  if (open && panel === el.music) library.opened();
+// Réglages : une feuille, une catégorie à la fois (barre latérale) ; Visages et Musique en sont deux.
+const paneNavs = [...el.settings.querySelectorAll('[data-pane]')];
+let pane = $('#pane-general');
+const shown = (p) => !el.settings.hidden && pane === p;
+function openPane(p) {
+  pane = p;
+  for (const b of paneNavs) {
+    const on = b.dataset.pane === p.id;
+    $(`#${b.dataset.pane}`).hidden = !on;
+    if (on) b.setAttribute('aria-current', 'page');
+    else b.removeAttribute('aria-current');
+    if (on) $('#prefs-title').textContent = b.textContent.trim();
+  }
+  el.settings.hidden = false;
+  $('.prefs-body').scrollTop = 0;
+  if (p === el.music) library.opened();
+  if (p.id === 'pane-brain') loadModels();
   showDock();
 }
-const panels = () => [el.themes, el.settings, el.music];
-function closePanels() {
-  for (const p of panels()) p.hidden = true;
+// un bouton ouvre sa catégorie, ou referme la feuille s'il y est déjà (el.settings : la dernière catégorie vue)
+function togglePanel(p) {
+  if (p === el.settings ? !el.settings.hidden : shown(p)) closePanels();
+  else openPane(p === el.settings ? pane : p);
 }
+function closePanels() {
+  el.settings.hidden = true;
+}
+for (const b of paneNavs) b.addEventListener('click', () => openPane($(`#${b.dataset.pane}`)));
+
+// le modèle du cerveau, parmi ceux que propose son serveur (Groq ou le tien)
+function loadModels() {
+  const sel = $('#s-model');
+  fetch('/api/models').then((r) => r.json().then((d) => (r.ok ? d : Promise.reject(new Error(d.error))))).then(({ current, models }) => {
+    const list = models.includes(current) ? models : [current, ...models];
+    sel.replaceChildren(...list.map((m) => new Option(m, m, false, m === current)));
+    $('#s-model-row').hidden = !models.length;
+  }).catch(report);
+}
+$('#s-model').addEventListener('change', (e) => post('/key', { model: e.target.value }).then(() => note(t('Je réfléchis maintenant avec {model}.', { model: e.target.value })), report));
 // Au tout premier morceau, une fois : garder la tenue et les notes, ou pas (sans réponse, tout reste comme avant).
 function askDeco() {
   if (settings.decoAsked || BARE || MIRROR || document.body.dataset.layout !== 'window') return;
@@ -544,7 +572,7 @@ function askDeco() {
 }
 // un clic à côté d'un panneau ouvert le ferme (le dock garde ses boutons : ils ouvrent et ferment eux-mêmes)
 addEventListener('pointerdown', (e) => {
-  if (panels().some((p) => !p.hidden) && !e.target.closest('.panel, .dock, .devlog, .toast')) closePanels();
+  if (!el.settings.hidden && !e.target.closest('.panel, .dock, .devlog, .toast')) closePanels();
 });
 
 let dockTimer = 0;
@@ -553,7 +581,7 @@ function showDock() {
   document.body.classList.remove('calm');
   clearTimeout(dockTimer);
   dockTimer = setTimeout(() => {
-    const busy = el.dock.matches(':hover, :focus-within') || el.now.matches(':hover, :focus-within') || seeking || panels().some((p) => !p.hidden) || ptt;
+    const busy = el.dock.matches(':hover, :focus-within') || el.now.matches(':hover, :focus-within') || seeking || !el.settings.hidden || ptt;
     if (busy) return showDock();
     el.dock.classList.add('away');
     document.body.classList.add('calm');
@@ -935,7 +963,7 @@ function frame(now) {
     renderNow();
   }
   draw(screenCtx, el.screen.width, el.screen.height, f, dt);
-  if (!el.themes.hidden) {
+  if (shown(el.themes)) {
     for (const p of previews) {
       fit(p.canvas);
       p.draw(p.ctx, p.canvas.width, p.canvas.height, f, dt);
@@ -1050,13 +1078,12 @@ el.chat.addEventListener('submit', (e) => {
 
 $('#btn-themes').addEventListener('click', () => togglePanel(el.themes));
 $('#btn-music').addEventListener('click', () => togglePanel(el.music));
-$('#s-music-open').addEventListener('click', () => togglePanel(el.music));
 $('#btn-settings').addEventListener('click', () => {
   // dans l'encoche ou le widget, les réglages s'ouvrent dans la fenêtre de l'app
   if (APP && document.body.dataset.layout !== 'window') native({ type: 'open', panel: 'settings' });
   else togglePanel(el.settings);
 });
-document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', () => togglePanel(b.closest('.panel'))));
+document.querySelectorAll('[data-close]').forEach((b) => b.addEventListener('click', closePanels));
 el.wake.addEventListener('click', unlockAudio);
 
 let dragDepth = 0;
@@ -1156,10 +1183,10 @@ window.eliHost = {
   command(name) {
     const act = {
       settings: () => { if (el.settings.hidden) $('#btn-settings').click() },
-      faces: () => { if (el.themes.hidden) togglePanel(el.themes) },
+      faces: () => { if (!shown(el.themes)) openPane(el.themes) },
       chat: () => el.input.focus(),
       music: toggleMusic,
-      library: () => { if (el.music.hidden) togglePanel(el.music) },
+      library: () => { if (!shown(el.music)) openPane(el.music) },
       stop: () => stopAll('music'), // « Couper la parole » : le morceau continue
       'stop-music': () => stopAll(),
       prev: () => stepSong('prev'),
