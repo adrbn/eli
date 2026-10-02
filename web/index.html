@@ -47,7 +47,7 @@
 
   /* --- l'écran ---------------------------------------------------------------------------- */
   .stage { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 16px 16px 110px; transition: padding .7s var(--ease); }
-  body.calm .stage { padding-bottom: 16px; } /* dock caché : le visage revient au centre */
+  @media (min-width: 641px) { body:not(.playing) .stage { padding-bottom: 16px; } } /* centré dans la fenêtre : le dock passe dessous sans le pousser */
   .bezel { --ratio: 2; position: relative; padding: clamp(10px, 1.8vw, 22px); background: linear-gradient(160deg, #141714, #0a0b0a); border-radius: clamp(18px, 3vw, 34px); box-shadow: 0 0 0 1px #1c201c, inset 0 1px 0 #ffffff0d, 0 30px 60px -20px #000c; transition: border-radius .4s; }
   .bezel[data-screen="round"] { --ratio: 1; border-radius: 50%; }
   .bezel[data-screen="wide"] { --ratio: 1.3333; }
@@ -112,7 +112,6 @@
   @media (min-width: 641px) {
     body.playing:is(:not([data-layout]), [data-layout="window"]) { --chrome: 380px; }
     body.playing:is(:not([data-layout]), [data-layout="window"]) .stage { padding-bottom: 150px; }
-    body.playing.calm:is(:not([data-layout]), [data-layout="window"]) .stage { padding-bottom: 16px; }
     body:is(:not([data-layout]), [data-layout="window"]) .now { animation: none; } /* un transform ici décrocherait la barre fixe */
     body:is(:not([data-layout]), [data-layout="window"]) :is(.now-lyrics, .now-bar) { animation: rise .5s var(--ease); }
     body:is(:not([data-layout]), [data-layout="window"]) .now-bar { position: fixed; left: 0; right: 0; bottom: 92px; margin: auto; width: min(640px, calc(100vw - 32px)); z-index: 4; }
