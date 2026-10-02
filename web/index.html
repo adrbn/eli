@@ -208,7 +208,9 @@
   .item.link { width: 100%; background: transparent; border: 0; color: inherit; text-align: left; cursor: pointer; }
   .item.link:hover { background: #ffffff06; }
   .item.link svg { width: 18px; height: 18px; color: var(--muted); }
-  .search { position: sticky; top: 58px; z-index: 1; display: flex; gap: 8px; margin: 2px 0 10px; }
+  .search { position: sticky; top: 58px; z-index: 1; display: flex; gap: 8px; margin: 0 -18px 4px; padding: 2px 18px 8px; background: var(--panel); } /* opaque : la liste défile dessous */
+  .search .btn { background: var(--group); }
+  .search .btn:hover { background: #161a16; }
   .search input { flex: 1; min-width: 0; padding: 9px 12px; background: var(--group); border: 1px solid var(--line-strong); border-radius: 9px; outline: none; font-size: 14px; }
   .search input:focus { border-color: var(--green); }
   .songs { display: grid; gap: 1px; margin: 0; padding: 0; list-style: none; transition: opacity .2s; }
