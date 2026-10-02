@@ -156,7 +156,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
         }
     }
 
-    func load() { web.load(URLRequest(url: page)) }
+    // What was on screen stays on top until the page has drawn its first frame (Eli still asleep, same place):
+    // no blank frame between the two pages.
+    var cover: NSView?
+    func load() {
+        web.takeSnapshot(with: nil) { [weak self] image, _ in
+            guard let self else { return }
+            if let image, self.cover == nil {
+                let view = NSImageView(image: image)
+                view.frame = self.web.bounds
+                view.autoresizingMask = [.width, .height]
+                view.imageScaling = .scaleAxesIndependently
+                self.web.addSubview(view)
+                self.cover = view
+                DispatchQueue.main.asyncAfter(deadline: .now() + 4) { [weak self] in self?.uncover() }  // a page that never says so
+            }
+            self.web.load(URLRequest(url: self.page))
+        }
+    }
+
+    func uncover() {
+        guard let view = cover else { return }
+        cover = nil
+        NSAnimationContext.runAnimationGroup({ $0.duration = 0.25; view.animator().alphaValue = 0 }, completionHandler: { view.removeFromSuperview() })
+    }
 
     func alive() async -> Bool {
         let request = URLRequest(url: origin.appendingPathComponent("api/status"), timeoutInterval: 1)
@@ -242,13 +265,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             <!doctype html><meta charset="utf-8"><title>Eli</title>
             <style>\#(pixelFont)
             html,body{margin:0;height:100%;background:#000;overflow:hidden}
-            body{display:grid;place-content:center;justify-items:center;gap:28px;padding:40px 16px 110px;box-sizing:border-box}
-            canvas{display:block;image-rendering:pixelated}
+            body{display:grid;place-content:center;justify-items:center;gap:28px;padding:40px 16px;box-sizing:border-box}
+            .bezel{padding:clamp(10px,1.8vw,22px);background:linear-gradient(160deg,#141714,#0a0b0a);border-radius:clamp(18px,3vw,34px);box-shadow:0 0 0 1px #1c201c,inset 0 1px 0 #ffffff0d,0 30px 60px -20px #000c}
+            canvas{display:block;image-rendering:pixelated;border-radius:6px}
             p{margin:0;max-width:34ch;text-align:center;font:22px/33px px,ui-monospace,monospace;color:#d6eadb}
             p:empty{display:none}
-            @media (max-width:479px){body{padding:0;gap:12px}p{font-size:11px;line-height:16px}}
+            @media (max-width:479px){body{padding:0;gap:12px}.bezel{padding:0;background:none;box-shadow:none}p{font-size:11px;line-height:16px}}
             </style>
-            <canvas role="img" aria-label="\#(L("Eli se réveille", "Eli is waking up"))"></canvas><p>\#(message)</p>
+            <div class="bezel"><canvas role="img" aria-label="\#(L("Eli se réveille", "Eli is waking up"))"></canvas></div><p>\#(message)</p>
             <script>
             const cv = document.querySelector('canvas'), ctx = cv.getContext('2d'), still = matchMedia('(prefers-reduced-motion: reduce)').matches;
             const off = new OffscreenCanvas(128, 64), o = off.getContext('2d'), img = o.createImageData(128, 64), px = new Uint32Array(img.data.buffer);
@@ -302,13 +326,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
 
     func isLocal(_ host: String?) -> Bool { host == "127.0.0.1" || host == "localhost" }
 
-    // Page → app: {type:'open', panel}, {type:'hold', on}, {type:'state', loaded, singing, title}, {type:'copy', text}.
+    // Page → app: {type:'ready'}, {type:'open', panel}, {type:'hold', on}, {type:'state', loaded, singing, title}, {type:'copy', text}.
     func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
         guard isLocal(message.frameInfo.securityOrigin.host), let body = message.body as? [String: Any] else { return }
         switch body["type"] as? String {
         case "open":
             place(.window)
             if let panel = body["panel"] as? String, ["settings", "faces"].contains(panel) { command(panel) }
+        case "ready": uncover()
         case "hold": notch?.hold = body["on"] as? Bool == true
         case "state": song = (body["loaded"] as? Bool ?? (body["singing"] as? Bool == true), body["singing"] as? Bool == true, body["title"] as? String)
         case "copy":  // navigator.clipboard refuses writes without a user gesture, as from a menu

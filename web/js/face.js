@@ -62,7 +62,7 @@ export class Face {
       if (soft) return;
       this.forced = false;
       this.groggy = true;
-    } else if (this.e.sleep > 0.3) { // réveillé en sursaut : grands yeux, puis ça retombe
+    } else if (this.e.sleep > 0.3 && !this.groggy) { // réveillé en sursaut : grands yeux, puis ça retombe
       this.blink();
       this.e.sc = 1.3;
     }
