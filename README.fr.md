@@ -224,6 +224,23 @@ Sur l'ESP32, un visage sera exactement ça : une fonction de dessin.
 
 </details>
 
+<details>
+<summary><b>Les visages en fichiers (<code>.eliface</code>)</b></summary>
+
+<br>
+
+Chaque visage sauf `oscillo` existe aussi en petit fichier JSON dans [`web/faces/`](web/faces) : des formes
+(rect, ellipse, segment, triangle, arc, région) dont tailles et positions sont des formules de l'état du visage
+(`gx`, `open`, `hap`, `o`, `T`…). Un fichier ne peut pas exécuter de code : les formules ne connaissent que
+l'arithmétique, les comparaisons et quelques fonctions mathématiques. Ouvre la page avec `?faces=format` pour dessiner
+chaque thème depuis son fichier plutôt que son code, et [`web/tests/compare.html`](web/tests/compare.html) pour voir
+les deux côte à côte. Pixel, Chat pixel et Matrice donnent exactement les mêmes cellules que le code sur des centaines
+d'états (`web/tests/faceparity.test.mjs`). Le format est décrit dans
+[`docs/superpowers/specs/2026-10-02-face-format-design.md`](docs/superpowers/specs/2026-10-02-face-format-design.md) ;
+c'est la base pour partager des visages et les faire tourner sur l'ESP32 sans reflasher.
+
+</details>
+
 ## Comment ça marche
 
 ```mermaid
@@ -431,6 +448,7 @@ essayé sur du matériel.** La musique (MP3) n'est pas jouée sur la carte.
 - [x] App Mac native (fenêtre, flottant, encoche) et app iPhone
 - [x] Mode développeur : journaux en direct et diagnostic pour les rapports de bug
 - [x] Choisis la couleur d'Eli
+- [x] Les visages en fichiers déclaratifs (`.eliface`), identiques au pixel près au code
 - [ ] Mods de la communauté : partager visages et personnages en un clic, compétences via MCP
 - [ ] Version ESP32 + cou motorisé (servo)
 - [ ] Plusieurs Eli qui se parlent entre eux

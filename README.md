@@ -218,6 +218,22 @@ On the ESP32, a face will be exactly this: one drawing function.
 
 </details>
 
+<details>
+<summary><b>Faces as files (<code>.eliface</code>)</b></summary>
+
+<br>
+
+Every face except `oscillo` also exists as a small JSON file in [`web/faces/`](web/faces): shapes (rect, ellipse,
+segment, triangle, arc, region) whose sizes and positions are formulas of the face state (`gx`, `open`, `hap`,
+`o`, `T`…). A file can't run code: formulas only know arithmetic, comparisons and a few math functions.
+Open the page with `?faces=format` to draw every theme from its file instead of its code, and
+[`web/tests/compare.html`](web/tests/compare.html) to see both side by side. Pixel, Chat pixel and Matrice match their
+code cell for cell over hundreds of states (`web/tests/faceparity.test.mjs`). The format is described in
+[`docs/superpowers/specs/2026-10-02-face-format-design.md`](docs/superpowers/specs/2026-10-02-face-format-design.md);
+it is the base for sharing faces and running them on the ESP32 without reflashing.
+
+</details>
+
 ## How it works
 
 ```mermaid
@@ -418,6 +434,7 @@ board.
 - [x] Native Mac app (window, floating, notch) and iPhone app
 - [x] Developer mode: live logs and a diagnostic for bug reports
 - [x] Pick Eli's color
+- [x] Faces as declarative files (`.eliface`), pixel-exact with the code
 - [ ] Community mods: share faces and characters in one click, skills through MCP
 - [ ] ESP32 build + servo neck
 - [ ] Several Elis talking to each other
