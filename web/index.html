@@ -119,6 +119,7 @@
     /* des paroles à lire : même taille, il monte juste assez pour elles ; la barre et le dock passent dessus le temps qu'on s'en sert */
     body.sung:is(:not([data-layout]), [data-layout="window"]) .stage::before { height: 0; margin-bottom: -20px; }
     body.sung:not(.captioned):is(:not([data-layout]), [data-layout="window"]) .caption { display: none; }
+    body:not(.sung):is(:not([data-layout]), [data-layout="window"]) .now-lyrics { display: none; }
     body:is(:not([data-layout]), [data-layout="window"]) .now { animation: none; } /* un transform ici décrocherait la barre fixe */
     body:is(:not([data-layout]), [data-layout="window"]) :is(.now-lyrics, .now-bar) { animation: rise .5s var(--ease); }
   }

@@ -693,10 +693,11 @@ function renderNow() {
     renderTitle(m, ly);
     if (ly && !ly.lines.length && lyricsOn) toast(t('Pas de paroles trouvées pour ce morceau.'));
   }
-  document.body.classList.toggle('sung', lyricsOn && Boolean(ly?.lines.length)); // les paroles prennent leur place sous le visage
   const pos = player.position(m), dur = m.buffer.duration;
   lastSong = { pos, dur };
   if (ly?.lines?.length) renderLyrics(ly.lines, pos + settings.lead / 1000);
+  // une ligne à lire prend sa place sous le visage ; intro, pont instrumental ou fin : il se recentre
+  document.body.classList.toggle('sung', lyricsOn && Boolean(ly?.lines?.[lyricAt]?.[1]?.trim()));
   if (!seeking) {
     el.nowSeek.value = pos / dur;
     paint(el.nowSeek);
@@ -1061,7 +1062,7 @@ addEventListener('blur', pttEnd);
 
 addEventListener('keydown', (e) => {
   showDock();
-  face.wake();
+  face.wake(true); // endormi, une touche ne le réveille pas (Espace pour lui parler, si)
   unlockAudio();
   if (isField(e.target)) {
     if (e.key === 'Escape') e.target.blur();

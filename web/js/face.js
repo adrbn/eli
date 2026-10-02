@@ -56,10 +56,11 @@ export class Face {
     this.e.nb = 2.2 + Math.random() * 3.8;
   }
 
-  // soft : un simple signe de vie (souris, serveur au repos), qui ne tire pas d'un sommeil commandé.
+  // soft : un simple signe de vie (souris, clavier, serveur au repos), qui ne tire pas du sommeil :
+  // endormi, seuls son nom, un clic ou une parole le réveillent.
   wake(soft = false) {
+    if (soft && (this.forced || this.e.sleep > 0.6)) return;
     if (this.forced) {
-      if (soft) return;
       this.forced = false;
       this.groggy = true;
     } else if (this.e.sleep > 0.3 && !this.groggy) { // réveillé en sursaut : grands yeux, puis ça retombe

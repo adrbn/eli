@@ -4,6 +4,7 @@ import { BREATH } from './face.js';
 
 export const MAX_SLEEP_H = 8;
 const DAY = 24 * 3600e3;
+const LEVEL = 0.35; // le sommeil se fait discret : bien en dessous de sa voix
 
 // Sommeil commandé ([dodo…] du serveur) → l'heure du réveil, en ms : « 7h30 » / « 7:30 » = la prochaine fois
 // que cette heure sonne, « +20 » = dans 20 min (un jour au plus), sinon MAX_SLEEP_H heures.
@@ -53,6 +54,7 @@ export class Sleeper {
 
   // Une enveloppe qui monte, tient puis retombe ; `rattle` Hz : le volume tremble (le râle, le ronron).
   envelope(ctx, at, peak, rise, hold, fall, rattle = 0, depth = 0) {
+    peak *= LEVEL;
     const g = ctx.createGain();
     g.gain.setValueAtTime(0, at);
     g.gain.linearRampToValueAtTime(peak, at + rise);
