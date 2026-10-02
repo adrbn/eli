@@ -42,6 +42,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // One Eli at a time: two copies (an old build next to /Applications) share a server and fight for the mic,
+        // and WebKit hands the mic to one page only — the other hears silence.
+        let me = NSRunningApplication.current
+        if let other = NSRunningApplication.runningApplications(withBundleIdentifier: Bundle.main.bundleIdentifier ?? "")
+            .first(where: { $0 != me }) {
+            other.activate()
+            NSApp.terminate(nil)
+            return
+        }
         defaults.register(defaults: ["port": 5280, "widget.allSpaces": true])
         NSWindow.allowsAutomaticWindowTabbing = false  // no tab items in the View menu
         NSApp.mainMenu = mainMenu()

@@ -185,7 +185,7 @@ function dots(opts, lit = pixLit, anchors = pixAnchors) {
 // Dessin vectoriel dans un repère fixe (w×h) mis à l'échelle de l'écran. `fade` > 0 : rémanence (oscilloscope).
 // xf = [k, ox, oy] : où tombe le repère 2:1 des extras (notes, tenues) dans ce dessin.
 // Les visages vectoriels n'ont pas d'écran physique à imiter : ils se dessinent sur le fond de la page (--bg), sans cadre.
-const PAGE = [5, 6, 5];
+const PAGE = [0, 0, 0];
 
 function vector(w, h, draw, fade = 0, xf = [100, 10, 50], anchors = pixAnchors) {
   return (ctx, W, H, f, dt) => {

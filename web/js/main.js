@@ -836,8 +836,9 @@ async function hotword(on) {
 }
 
 // Ni pendant qu'il parle (il s'entendrait), ni pendant « appuyer pour parler », ni dans un onglet passif.
+// Pendant un morceau, si : « Eli, stop » doit marcher.
 function hotTap(x, level) {
-  if (ptt || passive || hotBusy || player.busy()) segmenter?.reset();
+  if (ptt || passive || hotBusy || player.talking()) segmenter?.reset();
   else segmenter?.push(x, level);
 }
 
@@ -856,6 +857,8 @@ async function hotSegment(chunks) {
     const res = await post('/brain/hotword', wav, 'audio/wav');
     if (!res.wake) return;
     face.wake();
+    const m = player.music();
+    if (m && !(m.paused >= 0)) player.toggle(m); // le morceau se met en pause : sa réponse ne passe pas après
     if (res.listen) {
       followUntil = performance.now() + FOLLOW_MS;
       note(t('Oui ? Je t’écoute…'));
@@ -1008,7 +1011,7 @@ function frame(now) {
   ink = nextInk;
   setInk(ink);
   if (f.gesture === 'meow' && !passive && !MIRROR && player.ready) post('/brain/meow').catch(report);
-  sleeper.update(f, settings.snore, face.cat);
+  sleeper.update(f, settings.snore && !bootNap, face.cat); // la sieste du démarrage est muette : un ronflement coupé net au réveil sonne comme un bug
   watchSleep();
   if (wasAsleep && !f.asleep) bootNap ? (bootNap = false) : maybeBrief();
   wasAsleep = f.asleep;
@@ -1188,6 +1191,7 @@ function takeOver() {
   passive = false;
   wakeLabel.textContent = t('Clique pour réveiller Eli (le son a besoin d’un clic)');
   el.wake.hidden = player.ready;
+  if (settings.hotword && !segmenter) hotword(true);
   claim();
 }
 function yieldTo() {
@@ -1195,6 +1199,7 @@ function yieldTo() {
   passive = true;
   pttEnd();
   player.stop();
+  if (segmenter) hotword(false); // WebKit ne donne le micro qu'à une page : l'écran qui parle le garde
   wakeLabel.textContent = t('Eli parle ailleurs (autre onglet, app ou appareil) : clique pour le reprendre ici');
   el.wake.hidden = Boolean(APP && document.body.dataset.layout !== 'window');
 }

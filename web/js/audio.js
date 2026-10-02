@@ -136,6 +136,12 @@ export class Player {
     return this.pending.length > 0 || (this.ctx !== null && this.cursor > this.ctx.currentTime);
   }
 
+  // Eli parle (ou va parler) : un morceau qui joue ne compte pas, l'annulation d'écho du micro l'efface.
+  talking() {
+    const now = this.ctx?.currentTime ?? 0;
+    return this.pending.some((i) => i.kind !== 'music') || this.playing.some((i) => i.kind !== 'music' && i.end > now);
+  }
+
   // keep = 'music' : coupe la parole mais laisse le morceau en cours.
   stop(keep = null) {
     const kept = (i) => keep !== null && i.kind === keep;
