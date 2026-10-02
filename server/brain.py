@@ -22,6 +22,7 @@ import brief
 import meow
 import piper_text
 import tags
+from keys import BadKey, check_llm as list_models
 from navidrome import MusicError
 from memory import Memory
 
@@ -29,6 +30,8 @@ log = logging.getLogger("eli.brain")
 SIMILAR = re.compile(r"pareil|similaire|similar|same|more like this", re.I)  # [music: similar]: one like the song playing
 
 GROQ = "https://api.groq.com/openai/v1"
+GROQ_PICKS = ("openai/gpt-oss-120b", "openai/gpt-oss-20b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant")
+NOT_CHAT = re.compile(r"whisper|guard|tts|orpheus|playai|prompt|compound", re.I)
 UA = "eli/0.1"  # urllib's default User-Agent sometimes gets blocked by Cloudflare
 
 DEFAULT_PERSONA = {
@@ -467,7 +470,7 @@ class Brain:
         if sleep and self.alive(turn):  # the page falls asleep once he's done talking
             self.publish("sleep", {"at": sleep[-1], "turn": turn})
 
-    def reply_stream(self, messages: list[dict]) -> Iterator[str]:
+    def reply_stream(self, messages: list[dict], healed: bool = False) -> Iterator[str]:
         last: Exception | None = None
         for model in [m for m in (self.cfg["LLM_MODEL"], self.cfg.get("LLM_FALLBACK_MODEL")) if m]:
             got = False
@@ -481,7 +484,29 @@ class Brain:
                     raise
                 log.warning("LLM %s failed: %s", model, exc)
                 last = exc
+        if not healed and self._heal():
+            yield from self.reply_stream(messages, healed=True)
+            return
         raise RuntimeError(f"LLM unavailable: {last}")
+
+    def _heal(self) -> bool:
+        """Groq retires models: when none of ours is listed anymore, think with the best one still there (until restart)."""
+        if self.cfg.get("LLM_URL"):
+            return False
+        try:
+            listed = list_models(GROQ, self._llm_key())
+        except BadKey:
+            return False
+        mine = [m for m in (self.cfg["LLM_MODEL"], self.cfg.get("LLM_FALLBACK_MODEL")) if m]
+        if any(m in listed for m in mine):  # still served: the failure is elsewhere (network, quota)
+            return False
+        chat = [m for m in listed if not NOT_CHAT.search(m)]
+        pick = next((m for m in GROQ_PICKS if m in chat), chat[0] if chat else None)
+        if not pick:
+            return False
+        log.warning("Groq no longer serves %s: thinking with %s", ", ".join(mine), pick)
+        self.cfg.update(LLM_MODEL=pick, LLM_FALLBACK_MODEL="")
+        return True
 
     def _sentence(self, turn: int, sentence: str, said: list[str], songs: list[str], sleep: list[str] | None = None) -> None:
         text, mood, song = tags.parse(sentence)

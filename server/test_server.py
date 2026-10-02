@@ -113,6 +113,32 @@ class TextTest(unittest.TestCase):
         self.assertNotIn("done", [d.get("stage") for e, d in events if e == "brain"])
         self.assertEqual(brain.memory.history, [{"role": "user", "content": "Salut"}, {"role": "assistant", "content": "Première phrase."}])
 
+    def test_retired_groq_model_is_replaced(self):
+        import brain as brain_mod
+        cfg = {"GROQ_API_KEY": "x", "PERSONA_FILE": "", "LLM_MODEL": "old-big", "LLM_FALLBACK_MODEL": "old-small"}
+        brain = Brain(cfg, FakeTTS(), types.SimpleNamespace(clip=lambda *a: None), lambda e, d: None)
+        tried = []
+
+        def chat(_key, model, _messages, **_kw):
+            tried.append(model)
+            if model.startswith("old"):
+                raise urllib.error.HTTPError("u", 404, "model_not_found", None, None)
+            yield "Salut."
+
+        listed = ["whisper-large-v3", "llama-3.3-70b-versatile", "new-thing"]
+        real_chat, real_list = brain_mod.stream_chat, brain_mod.list_models
+        brain_mod.stream_chat, brain_mod.list_models = chat, lambda *_a: listed
+        try:
+            self.assertEqual("".join(brain.reply_stream([])), "Salut.")
+            self.assertEqual(tried, ["old-big", "old-small", "llama-3.3-70b-versatile"])
+            self.assertEqual(cfg["LLM_MODEL"], "llama-3.3-70b-versatile")  # kept for the next sentences
+            listed.append("old-big")  # still listed: the failure is elsewhere (quota, network), nothing to heal
+            cfg.update(LLM_MODEL="old-big", LLM_FALLBACK_MODEL="")
+            with self.assertRaises(RuntimeError):
+                "".join(brain.reply_stream([]))
+        finally:
+            brain_mod.stream_chat, brain_mod.list_models = real_chat, real_list
+
 
 class ServerTest(unittest.TestCase):
     @classmethod
