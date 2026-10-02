@@ -1030,6 +1030,7 @@ addEventListener('keydown', (e) => {
   } else if (e.key === 'v' || e.key === 'V') {
     togglePanel(el.themes);
   } else if (e.key === 'm' || e.key === 'M') {
+    e.preventDefault(); // sinon le « m » atterrit dans la recherche, qui prend le focus
     toggleLibrary();
   } else if (e.key === 'Enter') {
     e.preventDefault();
