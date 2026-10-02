@@ -98,12 +98,34 @@ export function analyzeSpeech(x, minRef = -Infinity, pitch = false) {
     lo[f] = (e[0] + e[1]) / tot; // tout dans le grave → lèvres arrondies (o, ou)
   });
   const ref = Math.max(minRef, percentile(db.filter((d) => d > FLOOR_DB), 0.95));
+  if (pitch) { // les seuils ci-dessous viennent de la voix parlée de Piper ; une voix chantée (grave, voyelles tenues)
+    // se tient ailleurs : « a » grand ouvert partout, largeur figée. Chaque piste est ramenée à sa propre plage.
+    const sung = [];
+    for (let f = 0; f < n; f++) if (db[f] > ref - 20) sung.push(f);
+    const remap = (a, lo, hi) => { // par rang : chaque valeur devient sa place parmi les frames chantées
+      const v = Float32Array.from(sung, (f) => a[f]).sort();
+      for (let f = 0; f < n; f++) {
+        let i = 0, j = v.length;
+        while (i < j) { const m = (i + j) >> 1; if (v[m] < a[f]) i = m + 1; else j = m }
+        a[f] = lo + (i / v.length) * (hi - lo);
+      }
+    };
+    if (sung.length > 50) { remap(f1, 0.15, 0.85); remap(f2, 0, 0.55); remap(lo, 0.45, 1.0); remap(fr, 0, 0.5) }
+  }
   const o = new Float32Array(n), w = new Float32Array(n), r = new Float32Array(n), t = new Float32Array(n), lv = new Float32Array(n);
+  // Chanté, la voix tient presque toujours son niveau : ce sont ses creux (consonnes, souffle entre deux syllabes)
+  // sous le pic voisin qui referment la bouche, pas le silence.
+  const dip = new Float32Array(n).fill(1);
+  if (pitch) for (let f = 0; f < n; f++) {
+    let peak = -Infinity;
+    for (let k = Math.max(0, f - 12); k <= Math.min(n - 1, f + 12); k++) peak = Math.max(peak, db[k]);
+    dip[f] = 0.15 + 0.85 * smooth(-14, -4, db[f] - peak);
+  }
   let so = 0, sw = 0.3, sr = 0, st = 0;
   for (let f = 0; f < n; f++) {
     const level = db[f] < FLOOR_DB || db[f] < ref - 34 ? 0 : clamp((db[f] - (ref - 32)) / 28);
     const fric = smooth(0.25, 0.6, fr[f]);
-    const to = level ? level ** 0.8 * (0.35 + 0.65 * smooth(0.25, 0.75, f1[f])) * (1 - 0.6 * fric) : 0;
+    const to = level ? level ** 0.8 * (0.35 + 0.65 * smooth(0.25, 0.75, f1[f])) * (1 - 0.6 * fric) * dip[f] : 0;
     const tw = level ? 0.25 + 0.75 * smooth(0.15, 0.55, f2[f]) : 0.3;
     const tr = level > 0.15 ? smooth(0.6, 0.9, lo[f]) * (1 - smooth(0.1, 0.4, f2[f])) : 0;
     so += (to - so) * (to > so ? 0.6 : to === 0 ? 0.7 : 0.45); // s'ouvre vite, se ferme encore plus vite au silence
