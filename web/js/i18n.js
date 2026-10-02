@@ -111,6 +111,7 @@ export const EN = {
   'Selon la musique': 'Match the music',
   'Aucune': 'None',
   'Musique': 'Music',
+  'Bibliothèque': 'Library',
   'Bibliothèque Navidrome': 'Navidrome library',
   'Branche ta bibliothèque Navidrome (ou tout serveur Subsonic) et demande « Eli, mets du Daft Punk ». Le mot de passe n’est pas gardé, seulement un jeton.':
     'Plug in your Navidrome library (or any Subsonic server) and ask “Eli, play some Daft Punk”. Your password isn’t kept, only a token.',

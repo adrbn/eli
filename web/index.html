@@ -105,6 +105,15 @@
   .dock.away { opacity: 0; transform: translate(-50%, 14px); pointer-events: none; }
   .now-bar { transition: opacity .3s, transform .3s; }
   body.calm .now-bar { opacity: 0; transform: translateY(8px); pointer-events: none; } /* les paroles restent, la barre part avec le dock */
+  /* fenêtre large : la barre se pose juste au-dessus du dock, l'écran et les paroles se centrent dans ce qui reste */
+  @media (min-width: 641px) {
+    body.playing:is(:not([data-layout]), [data-layout="window"]) { --chrome: 300px; }
+    body.playing:is(:not([data-layout]), [data-layout="window"]) .stage { padding-bottom: 150px; }
+    body.playing.calm:is(:not([data-layout]), [data-layout="window"]) .stage { padding-bottom: 16px; }
+    body:is(:not([data-layout]), [data-layout="window"]) .now { animation: none; } /* un transform ici décrocherait la barre fixe */
+    body:is(:not([data-layout]), [data-layout="window"]) :is(.now-lyrics, .now-bar) { animation: rise .5s var(--ease); }
+    body:is(:not([data-layout]), [data-layout="window"]) .now-bar { position: fixed; left: 0; right: 0; bottom: 92px; margin: auto; width: min(640px, calc(100vw - 32px)); z-index: 4; }
+  }
   .icon-btn { display: inline-flex; align-items: center; gap: 7px; height: 40px; padding: 0 13px; background: transparent; border: 0; border-radius: 999px; color: var(--muted); white-space: nowrap; transition: color .15s, background .15s; }
   .icon-btn:hover { color: var(--text); background: #ffffff0d; }
   .mic { width: 44px; height: 44px; padding: 0; justify-content: center; background: var(--green-dim); color: var(--green); touch-action: none; user-select: none; -webkit-user-select: none; }
@@ -126,6 +135,9 @@
   /* les réglages : une feuille au centre, le reste flouté derrière (un clic à côté la ferme) */
   #panel-settings { inset: 0; margin: auto; display: grid; grid-template-columns: 200px 1fr; width: min(800px, calc(100vw - 32px)); height: min(560px, calc(100dvh - 64px)); padding: 0; overflow: hidden; border: 1px solid var(--line-strong); border-radius: 18px; z-index: 7; box-shadow: 0 30px 90px #000c; animation: sheet .3s var(--ease); }
   #panel-settings[hidden] { display: none; }
+  /* la bibliothèque : la même feuille, une seule colonne (la note du dock l'ouvre ; ses réglages restent dans Réglages › Musique) */
+  #panel-library { inset: 0; margin: auto; width: min(640px, calc(100vw - 32px)); height: min(560px, calc(100dvh - 64px)); padding: 0 18px 18px; scrollbar-width: none; border: 1px solid var(--line-strong); border-radius: 18px; z-index: 7; box-shadow: 0 30px 90px #000c; animation: sheet .3s var(--ease); }
+  #panel-library::-webkit-scrollbar { display: none; }
   .prefs-nav { display: flex; flex-direction: column; gap: 2px; padding: 18px 10px; overflow-y: auto; scrollbar-width: none; background: #ffffff05; border-right: 1px solid var(--line); }
   .prefs-nav h2 { padding: 0 8px 16px; }
   .prefs-nav button { display: flex; align-items: center; gap: 10px; min-height: 32px; padding: 0 10px; text-align: left; background: none; border: 0; border-radius: 8px; font-size: 13.5px; color: var(--muted); transition: background .15s, color .15s; }
@@ -138,7 +150,7 @@
   .prefs-body header { margin: 0 -22px 8px; padding: 16px 14px 12px 22px; }
   .pane > h3:first-child { margin-top: 4px; }
   @keyframes sheet { from { opacity: 0; transform: translateY(12px) scale(.98); } }
-  body:has(#panel-settings:not([hidden]))::after { content: ""; position: fixed; inset: 0; z-index: 6; background: #0008; backdrop-filter: blur(16px) saturate(120%); -webkit-backdrop-filter: blur(16px) saturate(120%); animation: veil .25s ease-out; }
+  body:has(:is(#panel-settings, #panel-library):not([hidden]))::after { content: ""; position: fixed; inset: 0; z-index: 6; background: #0008; backdrop-filter: blur(16px) saturate(120%); -webkit-backdrop-filter: blur(16px) saturate(120%); animation: veil .25s ease-out; }
   @keyframes veil { from { opacity: 0; } }
   .panel header { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; margin: 0 -18px 6px; padding: 16px 12px 12px 20px; background: linear-gradient(var(--panel) 75%, transparent); }
   .panel h2 { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
@@ -523,6 +535,22 @@
   </button>
 </footer>
 
+<section class="panel" id="panel-library" hidden aria-label="Bibliothèque">
+  <header>
+    <h2>Bibliothèque</h2>
+    <button class="icon-btn" type="button" data-close title="Fermer (Échap)" aria-label="Fermer">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+    </button>
+  </header>
+  <div id="m-library" hidden>
+    <div class="search">
+      <input id="m-q" type="search" placeholder="Un titre, un artiste, un album…" aria-label="Chercher dans la bibliothèque" autocomplete="off">
+      <button class="btn" id="m-shuffle" type="button">Au hasard</button>
+    </div>
+    <ol class="songs" id="m-songs" data-empty=""></ol>
+  </div>
+</section>
+
 <section class="panel prefs" id="panel-settings" hidden aria-label="Réglages">
   <nav class="prefs-nav" aria-label="Catégories">
     <h2><svg class="glyph" viewBox="0 0 26 14" aria-hidden="true"><rect x="2" y="1" width="7" height="8" rx="2.5" fill="currentColor" stroke="none"/><rect x="17" y="1" width="7" height="8" rx="2.5" fill="currentColor" stroke="none"/><rect x="10" y="11" width="6" height="2" rx="1" fill="currentColor" stroke="none"/></svg>Réglages</h2>
@@ -614,13 +642,6 @@
     <input name="password" type="password" placeholder="Mot de passe" required autocomplete="current-password">
     <div class="row"><button class="btn go" type="submit">Connecter</button></div>
   </form>
-  <div id="m-library" hidden>
-    <div class="search">
-      <input id="m-q" type="search" placeholder="Un titre, un artiste, un album…" aria-label="Chercher dans la bibliothèque" autocomplete="off">
-      <button class="btn" id="m-shuffle" type="button">Au hasard</button>
-    </div>
-    <ol class="songs" id="m-songs" data-empty=""></ol>
-  </div>
   <div id="m-server" hidden>
     <h3>Serveur</h3>
     <div class="group">

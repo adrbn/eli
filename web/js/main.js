@@ -78,7 +78,7 @@ setCustom({
 const el = {
   bezel: $('#bezel'), screen: $('#screen'), caption: $('#caption'), toast: $('#toast'), dock: $('#dock'),
   mic: $('#btn-mic'), chat: $('#chat'), input: $('#chat-input'), status: $('#status'), info: $('#info'),
-  themes: $('#pane-faces'), settings: $('#panel-settings'), music: $('#pane-music'), groups: $('#theme-groups'), custom: $('#custom'),
+  themes: $('#pane-faces'), settings: $('#panel-settings'), music: $('#pane-music'), library: $('#panel-library'), groups: $('#theme-groups'), custom: $('#custom'),
   drop: $('#drop'), wake: $('#wake'), file: $('#file'), voice: $('#s-voice'), voiceHint: $('#s-voice-hint'),
   now: $('#now'), nowLine: $('#now-line'), nowNext: $('#now-next'), nowTitle: $('#now-title'), nowPlay: $('#now-play'),
   nowIcon: $('#now-icon'), nowSeek: $('#now-seek'), nowTime: $('#now-time'), nowDur: $('#now-dur'), devlog: $('#devlog'),
@@ -528,6 +528,7 @@ $('#s-llm-off').addEventListener('click', () => saveBrain({ llm_url: '' }, $('#s
 const paneNavs = [...el.settings.querySelectorAll('[data-pane]')];
 let pane = $('#pane-general');
 const shown = (p) => !el.settings.hidden && pane === p;
+const panelOpen = () => !el.settings.hidden || !el.library.hidden;
 function openPane(p) {
   pane = p;
   for (const b of paneNavs) {
@@ -537,9 +538,9 @@ function openPane(p) {
     else b.removeAttribute('aria-current');
     if (on) $('#prefs-title').textContent = b.textContent.trim();
   }
+  el.library.hidden = true;
   el.settings.hidden = false;
   $('.prefs-body').scrollTop = 0;
-  if (p === el.music) library.opened();
   if (p.id === 'pane-brain') loadModels();
   showDock();
 }
@@ -548,8 +549,18 @@ function togglePanel(p) {
   if (p === el.settings ? !el.settings.hidden : shown(p)) closePanels();
   else openPane(p === el.settings ? pane : p);
 }
+// la bibliothèque : sa propre feuille ; sans serveur branché, c'est Réglages › Musique qui s'ouvre (le formulaire)
+function toggleLibrary() {
+  if (!el.library.hidden) return closePanels();
+  if (!library.configured()) return shown(el.music) ? closePanels() : (openPane(el.music), library.opened());
+  el.settings.hidden = true;
+  el.library.hidden = false;
+  library.opened();
+  showDock();
+}
 function closePanels() {
   el.settings.hidden = true;
+  el.library.hidden = true;
 }
 for (const b of paneNavs) b.addEventListener('click', () => openPane($(`#${b.dataset.pane}`)));
 
@@ -572,7 +583,7 @@ function askDeco() {
 }
 // un clic à côté d'un panneau ouvert le ferme (le dock garde ses boutons : ils ouvrent et ferment eux-mêmes)
 addEventListener('pointerdown', (e) => {
-  if (!el.settings.hidden && !e.target.closest('.panel, .dock, .devlog, .toast')) closePanels();
+  if (panelOpen() && !e.target.closest('.panel, .dock, .devlog, .toast')) closePanels();
 });
 
 let dockTimer = 0;
@@ -581,7 +592,7 @@ function showDock() {
   document.body.classList.remove('calm');
   clearTimeout(dockTimer);
   dockTimer = setTimeout(() => {
-    const busy = el.dock.matches(':hover, :focus-within') || el.now.matches(':hover, :focus-within') || seeking || !el.settings.hidden || ptt;
+    const busy = el.dock.matches(':hover, :focus-within') || el.now.matches(':hover, :focus-within') || seeking || panelOpen() || ptt;
     if (busy) return showDock();
     el.dock.classList.add('away');
     document.body.classList.add('calm');
@@ -1019,7 +1030,7 @@ addEventListener('keydown', (e) => {
   } else if (e.key === 'v' || e.key === 'V') {
     togglePanel(el.themes);
   } else if (e.key === 'm' || e.key === 'M') {
-    togglePanel(el.music);
+    toggleLibrary();
   } else if (e.key === 'Enter') {
     e.preventDefault();
     el.input.focus();
@@ -1077,7 +1088,7 @@ el.chat.addEventListener('submit', (e) => {
 });
 
 $('#btn-themes').addEventListener('click', () => togglePanel(el.themes));
-$('#btn-music').addEventListener('click', () => togglePanel(el.music));
+$('#btn-music').addEventListener('click', toggleLibrary);
 $('#btn-settings').addEventListener('click', () => {
   // dans l'encoche ou le widget, les réglages s'ouvrent dans la fenêtre de l'app
   if (APP && document.body.dataset.layout !== 'window') native({ type: 'open', panel: 'settings' });
@@ -1186,7 +1197,7 @@ window.eliHost = {
       faces: () => { if (!shown(el.themes)) openPane(el.themes) },
       chat: () => el.input.focus(),
       music: toggleMusic,
-      library: () => { if (!shown(el.music)) openPane(el.music) },
+      library: () => { if (el.library.hidden) toggleLibrary() },
       stop: () => stopAll('music'), // « Couper la parole » : le morceau continue
       'stop-music': () => stopAll(),
       prev: () => stepSong('prev'),

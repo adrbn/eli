@@ -69,7 +69,7 @@ export function initLibrary({ post, note, report, stopAll, rendered = () => {} }
 
   // Ouvrir le panneau : la liste se remplit (des morceaux au hasard si rien n'est tapé) ; sans serveur, le formulaire attend.
   function opened() {
-    if (status.configured) {
+    if (status.configured && !$('#panel-library').hidden) {
       if (!list.childElementCount) search();
       q.focus({ preventScroll: true });
     } else form.url.focus({ preventScroll: true });
@@ -86,7 +86,7 @@ export function initLibrary({ post, note, report, stopAll, rendered = () => {} }
     btn.disabled = true;
     btn.textContent = t('Je vérifie…');
     post('/music/setup', { url: form.url.value, user: form.user.value, password: form.password.value })
-      .then((m) => { form.password.value = ''; render(m); note(t('Bibliothèque branchée.')); opened() }, report)
+      .then((m) => { form.password.value = ''; render(m); note(t('Bibliothèque branchée.')) }, report)
       .finally(() => { btn.disabled = false; btn.textContent = t('Connecter') });
   });
   $('#m-test').addEventListener('click', () => {
