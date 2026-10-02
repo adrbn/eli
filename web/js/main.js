@@ -465,7 +465,7 @@ const library = initLibrary({ post, note, report, stopAll, rendered: (m) => onbo
 const renderMusic = (m) => library.render(m);
 const onboarding = initOnboarding({
   post,
-  speak: (text) => post('/brain/speak', { text }).then(({ turn }) => { minTurn = Math.max(minTurn, turn) }, report),
+  play: (clip) => { player.stop(); unlockAudio(); onClip(clip) }, // l'extrait d'une voix, coupe le précédent
   react: (mood) => { face.mood = mood; moodUntil = performance.now() + 1800 },
   setLang: (l) => { const sel = $('#s-lang'); sel.value = l; sel.dispatchEvent(new Event('change')) },
   setHotword: (on) => { const hot = $('#s-hotword'); hot.checked = on; hot.dispatchEvent(new Event('change')) },

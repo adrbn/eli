@@ -123,6 +123,12 @@
   /* --- panneaux ---------------------------------------------------------------------------- */
   .panel { position: fixed; top: 0; right: 0; bottom: 0; width: min(460px, 100vw); overflow-y: auto; overscroll-behavior: contain; padding: 0 18px 120px; background: var(--panel); border-left: 1px solid var(--line); z-index: 6; box-shadow: -30px 0 80px #0009; animation: slide .35s var(--ease); }
   @keyframes slide { from { transform: translateX(24px); opacity: 0; } }
+  /* les réglages : une feuille au centre, le reste flouté derrière (un clic à côté la ferme) */
+  #panel-settings { inset: 0; margin: auto; width: min(600px, calc(100vw - 32px)); height: min(780px, calc(100dvh - 64px)); padding-bottom: 28px; border: 1px solid var(--line-strong); border-radius: 18px; z-index: 7; box-shadow: 0 30px 90px #000c; animation: sheet .3s var(--ease); }
+  #panel-settings header { border-radius: 18px 18px 0 0; }
+  @keyframes sheet { from { opacity: 0; transform: translateY(12px) scale(.98); } }
+  body:has(#panel-settings:not([hidden]))::after { content: ""; position: fixed; inset: 0; z-index: 6; background: #0008; backdrop-filter: blur(16px) saturate(120%); -webkit-backdrop-filter: blur(16px) saturate(120%); animation: veil .25s ease-out; }
+  @keyframes veil { from { opacity: 0; } }
   .panel header { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; margin: 0 -18px 6px; padding: 16px 12px 12px 20px; background: linear-gradient(var(--panel) 75%, transparent); }
   .panel h2 { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 17px; font-weight: 600; letter-spacing: -.01em; }
   .panel h2 .glyph { width: 26px; height: 14px; color: var(--green); filter: drop-shadow(0 0 6px color-mix(in srgb, var(--green) 47%, transparent)); }
@@ -305,8 +311,8 @@
     .devlog { bottom: calc(150px + env(safe-area-inset-bottom)); }
   }
   /* --- le premier lancement : Eli reste là, ses questions en sous-titres, les réponses dessous -------- */
-  body.onboarding { --chrome: 430px; cursor: auto; }
-  body.onboarding .stage { gap: 26px; padding-bottom: 28px; justify-content: safe center; overflow-y: auto; } /* une étape dépliée défile, le visage n'est jamais rogné */
+  body.onboarding { --chrome: 540px; cursor: auto; }
+  body.onboarding .stage { gap: 28px; padding-bottom: 56px; justify-content: safe center; overflow-y: auto; } /* une étape dépliée défile, le visage n'est jamais rogné */
   body.onboarding :is(.dock, .caption, .now) { display: none !important; }
   .onboard { display: grid; justify-items: center; gap: 18px; width: min(640px, 100%); text-align: center; }
   .ob-pips { display: flex; gap: 7px; margin: 0; padding: 0; list-style: none; }
@@ -320,8 +326,8 @@
   .ob-seg { display: inline-flex; padding: 3px; background: #ffffff08; border: 1px solid var(--line); border-radius: 10px; }
   .ob-seg button { padding: 5px 14px; background: none; border: 0; border-radius: 7px; font-size: .8125rem; color: var(--muted); transition: background .15s, color .15s; }
   .ob-seg button[aria-checked="true"] { background: #ffffff14; color: var(--text); }
-  .ob-voices { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
-  .ob-voice { display: grid; gap: 2px; min-width: 148px; padding: 10px 14px 11px; text-align: left; background: var(--group); border: 1px solid var(--line-strong); border-radius: 12px; transition: background .15s, border-color .15s, transform .1s; }
+  .ob-voices { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; max-width: 556px; margin-top: 4px; }
+  .ob-voice { display: grid; gap: 3px; width: 172px; padding: 11px 14px 12px; text-align: left; background: var(--group); border: 1px solid var(--line-strong); border-radius: 12px; transition: background .15s, border-color .15s, transform .1s; }
   .ob-voice:hover { background: #121612; }
   .ob-voice:active { transform: scale(.97); }
   .ob-voice b { font-size: .875rem; font-weight: 500; }
@@ -335,7 +341,7 @@
   .ob-howto .btn { flex: none; color: var(--text); text-decoration: none; }
   .ob-howto span { color: var(--text); }
   .ob-row { display: flex; flex: 1; gap: 8px; margin: 0; }
-  .onboard input:not(.switch) { min-width: 0; padding: 9px 11px; background: #ffffff08; border: 1px solid var(--line-strong); border-radius: 9px; outline: none; font-size: .8125rem; }
+  .onboard input:not(.switch) { min-width: 0; min-height: 36px; padding: 0 12px; background: #ffffff08; border: 1px solid var(--line-strong); border-radius: 9px; outline: none; font-size: .8125rem; }
   .onboard input:not(.switch):focus { border-color: var(--green); }
   .ob-row input { flex: 1; }
   .ob-more { width: min(470px, 100%); }
@@ -349,17 +355,23 @@
   .ob-out.ok { color: var(--green); }
   .ob-out.err { color: var(--danger); }
   .ob-out:empty { display: none; }
-  .ob-cta { padding: 10px 18px; font-size: .875rem; }
   .ob-toggle { display: flex; align-items: center; gap: 14px; padding: 11px 14px; text-align: left; background: var(--group); border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
   .ob-toggle span { display: grid; gap: 2px; font-size: .875rem; }
   .ob-toggle small { font-size: .75rem; color: var(--muted); }
-  .ob-nav { display: flex; align-items: center; justify-content: center; gap: 18px; min-height: 40px; }
-  .ob-link { padding: 8px 4px; background: none; border: 0; font-size: .8125rem; color: var(--muted); }
+  .ob-nav { display: flex; align-items: center; justify-content: center; gap: 20px; min-height: 40px; margin-top: 22px; }
+  .onboard .btn { display: inline-flex; align-items: center; justify-content: center; min-height: 36px; padding: 0 18px; border-radius: 10px; font-size: .875rem; font-weight: 500; transition: background .15s, border-color .15s, transform .1s var(--ease); }
+  .onboard .btn:active:not(:disabled) { transform: scale(.97); }
+  .onboard .btn:focus-visible { outline: 2px solid color-mix(in srgb, var(--green) 70%, transparent); outline-offset: 2px; }
+  .onboard .btn.go { background: var(--green); border-color: var(--green); color: #03140a; }
+  .onboard .btn.go:hover { background: color-mix(in srgb, var(--green) 88%, #fff); }
+  .ob-nav .btn { min-width: 132px; }
+  .onboard .ob-cta { min-height: 40px; padding: 0 22px; }
+  .ob-link { padding: 8px 6px; background: none; border: 0; font-size: .8125rem; color: var(--muted); }
   .ob-link:hover { color: var(--text); }
   .btn:disabled { opacity: .45; cursor: default; }
   @media (prefers-reduced-motion: reduce) {
     .dock, .toast, .bezel, .caption, .stage, #screen { transition: none; }
-    .zzz span, .eq i, .now, .now-line.in, .panel, .ob-step { animation: none !important; }
+    .zzz span, .eq i, .now, .now-line.in, .panel, .ob-step, body::after { animation: none !important; }
   }
 </style>
 </head>
@@ -684,8 +696,8 @@
 </section>
 
 <div class="drop" id="drop" hidden>
-  <div class="zone" data-kind="speech"><strong>Parler</strong><span>Une voix : la bouche suit chaque syllabe.</span></div>
-  <div class="zone" data-kind="music"><strong>Chanter</strong><span>Un morceau : il danse sur le tempo et chante sur la voix isolée.</span></div>
+  <div class="zone" data-kind="music"><strong>Chanter</strong><span>Un morceau de musique : lecteur, paroles, il danse et chante.</span></div>
+  <div class="zone" data-kind="speech"><strong>Parler</strong><span>Un enregistrement de voix : il le dit, la bouche suit chaque syllabe.</span></div>
 </div>
 
 <button class="wake" id="wake" type="button" hidden><span>Clique pour réveiller Eli (le son a besoin d’un clic)</span></button>

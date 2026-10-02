@@ -1,19 +1,24 @@
 // Le premier lancement : Eli pose ses questions en sous-titres (voix, cerveau, musique, micro) et réagit aux réponses.
 // Il ne parle qu'avec une voix choisie et prête, jamais avec celle de secours ; tout se saute et se retrouve dans Réglages.
+// Les voix s'écoutent tout de suite (extraits embarqués, samples/) ; seule celle qu'on garde se télécharge, pendant la suite.
 import { lang, t } from './i18n.js';
 
 const $ = (s) => document.querySelector(s);
 const STEPS = ['voice', 'brain', 'music', 'mic'];
 
-// deps : post, speak(text), react(mood), setLang(l), setHotword(on), music(m), done()
+// deps : post, play(clip), react(mood), setLang(l), setHotword(on), music(m), done()
 export function initOnboarding(deps) {
   const root = $('#onboard'), next = $('#ob-next'), back = $('#ob-back');
-  const state = { step: 0, catalog: null, sample: null, brain: false, music: false, mic: false };
-  const done = { voice: () => voiceReady(), brain: () => state.brain, music: () => state.music, mic: () => state.mic };
+  const state = { step: 0, catalog: null, pick: null, waiting: false, brain: false, music: false, mic: false };
+  const samples = fetch('samples/samples.json').then((r) => r.json()).catch(() => null);
+  const done = { voice: () => Boolean(state.catalog), brain: () => state.brain, music: () => state.music, mic: () => state.mic };
 
+  const piper = () => (state.catalog?.voices || []).filter((v) => !v.id.startsWith('say:'));
+  // la voix choisie : celle cliquée, sinon l'actuelle si c'est une vraie, sinon la première (celle par défaut)
+  const pick = () => state.pick || (piper().some((v) => v.id === state.catalog?.current) ? state.catalog.current : piper()[0]?.id);
   const voiceReady = () => {
     const c = state.catalog;
-    return Boolean(c && !c.busy && c.voices.some((v) => v.id === c.current && v.ready && !v.id.startsWith('say:')));
+    return Boolean(c && !c.busy && c.current === pick() && c.voices.some((v) => v.id === c.current && v.ready));
   };
   const say = (out, text, kind = '') => { out.textContent = text; out.className = `ob-out ${kind}` };
 
@@ -22,9 +27,10 @@ export function initOnboarding(deps) {
     for (const s of root.querySelectorAll('[data-step]')) s.hidden = s.dataset.step !== step;
     root.querySelectorAll('.ob-pips li').forEach((li, i) => li.classList.toggle('on', i <= state.step));
     back.hidden = state.step === 0;
-    next.hidden = step === 'voice' && !ok; // la voix d'abord : sans elle il ne parlera pas
     next.classList.toggle('go', ok); // un seul bouton vert à la fois
-    next.textContent = step === 'mic' ? t(ok ? 'C’est parti' : 'Plus tard') : t(ok ? 'Continuer' : 'Plus tard');
+    next.disabled = state.waiting;
+    next.textContent = state.waiting ? t('Ma voix arrive…')
+      : step === 'mic' ? t(ok ? 'C’est parti' : 'Plus tard') : t(ok ? 'Continuer' : 'Plus tard');
     for (const b of root.querySelectorAll('.ob-seg button')) b.setAttribute('aria-checked', String(b.dataset.lang === lang));
     renderVoices();
   }
@@ -32,21 +38,20 @@ export function initOnboarding(deps) {
   function renderVoices() {
     const c = state.catalog, box = $('#ob-voices');
     if (!c) return;
-    box.replaceChildren(...c.voices.filter((v) => !v.id.startsWith('say:')).map((v) => {
+    box.replaceChildren(...piper().map((v) => {
       const [name, desc] = v.label.split(' · ');
       const b = document.createElement('button'), n = document.createElement('b'), d = document.createElement('small');
       b.type = 'button';
       b.className = `ob-voice${c.busy === v.id ? ' busy' : ''}`;
       b.setAttribute('role', 'radio');
-      b.setAttribute('aria-checked', String((c.busy || c.current) === v.id));
+      b.setAttribute('aria-checked', String(pick() === v.id));
       b.dataset.id = v.id;
       n.textContent = name;
-      d.textContent = c.busy === v.id ? t('je la télécharge') : v.ready ? desc || '' : t('{desc} · ~60 Mo', { desc: desc || '' });
+      d.textContent = c.busy === v.id ? t('je la télécharge') : desc || '';
       b.append(n, d);
       return b;
     }));
     $('#ob-voice-note').textContent = c.error ? t('Raté : {error}', { error: c.error })
-      : c.busy ? t('Je télécharge ma voix (~60 Mo), je ne parlerai qu’avec elle…')
       : t('Clique sur une voix pour l’entendre. Elles tournent toutes sur ton Mac.');
   }
 
@@ -64,27 +69,37 @@ export function initOnboarding(deps) {
     go(0);
   }
 
+  // la voix gardée : téléchargée pendant les étapes suivantes (rien à faire si c'est déjà elle)
+  function commitVoice() {
+    const id = pick(), c = state.catalog;
+    if (id && c && id !== c.current && c.busy !== id) deps.post('/voice', { id }).catch((err) => say($('#ob-voice-note'), err.message));
+  }
+
   function finish() {
+    if (state.catalog && !voiceReady()) { // il ne parlera qu'avec la voix choisie : on l'attend
+      state.waiting = true;
+      return render();
+    }
+    state.waiting = false;
     root.hidden = true;
     document.body.classList.remove('onboarding');
     deps.done();
   }
 
-  // une voix : la choisir (téléchargée si besoin), puis l'entendre de sa bouche
-  $('#ob-voices').addEventListener('click', (e) => {
-    const id = e.target.closest('.ob-voice')?.dataset.id, c = state.catalog;
-    if (!id || c?.busy) return;
-    state.sample = id;
-    if (id === c.current) hear();
-    else deps.post('/voice', { id }).catch((err) => say($('#ob-voice-note'), err.message));
+  // une voix : l'entendre tout de suite de sa bouche (l'extrait), sans rien télécharger
+  $('#ob-voices').addEventListener('click', async (e) => {
+    const id = e.target.closest('.ob-voice')?.dataset.id;
+    if (!id) return;
+    state.pick = id;
+    render();
+    const s = await samples;
+    if (s?.phonemes[id]) deps.play({ url: `samples/${id}.m4a`, kind: 'speech', turn: 0, mood: 'joie', text: s.text[lang], phonemes: s.phonemes[id] });
   });
-  function hear() {
-    state.sample = null;
-    deps.speak(t('Salut ! Moi c’est Eli. Elle te plaît, cette voix ?'));
-  }
   root.querySelector('.ob-seg').addEventListener('click', (e) => {
     const l = e.target.closest('[data-lang]')?.dataset.lang;
-    if (l && l !== lang) deps.setLang(l);
+    if (!l || l === lang) return;
+    state.pick = null;
+    deps.setLang(l);
   });
 
   // le cerveau : la clé Groq, ou un modèle à soi
@@ -94,7 +109,7 @@ export function initOnboarding(deps) {
       const s = await deps.post('/key', body);
       state.brain = Boolean(s.llm);
       form.reset();
-      say(out, t('Ça y est, je réfléchis avec {model}.', { model: s.llm }), 'ok');
+      say(out, t('Ça y est, je réfléchis avec {model}.', { model: body.groq ? 'Groq' : s.llm }), 'ok');
       deps.react('joie');
       render();
       next.focus();
@@ -157,7 +172,11 @@ export function initOnboarding(deps) {
   for (const d of root.querySelectorAll('.ob-more')) d.addEventListener('toggle', () => {
     if (d.open) d.scrollIntoView({ block: 'nearest', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   });
-  next.addEventListener('click', () => (state.step === STEPS.length - 1 ? finish() : go(state.step + 1)));
+  next.addEventListener('click', () => {
+    if (state.step === 0) commitVoice();
+    if (state.step === STEPS.length - 1) finish();
+    else go(state.step + 1);
+  });
   back.addEventListener('click', () => go(state.step - 1));
 
   return {
@@ -166,7 +185,8 @@ export function initOnboarding(deps) {
     // les nouvelles du serveur, qui font avancer les étapes
     voices(c) {
       state.catalog = c;
-      if (state.sample && c.current === state.sample && !c.busy) hear();
+      if (state.waiting && c.error) { state.waiting = false; go(0) } // le téléchargement a raté : on le montre
+      else if (state.waiting && voiceReady()) return finish();
       if (!root.hidden) render();
     },
     info(s) { state.brain = Boolean(s?.llm); if (!root.hidden) render() },
