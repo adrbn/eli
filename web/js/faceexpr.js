@@ -1,4 +1,3 @@
-// web/js/faceexpr.js
 // The formula language of .eliface faces: numbers, names, + - * /, comparisons, && || !, a ternary and a few pure
 // functions. A formula compiles once to a closure over an env object and can reach nothing else.
 

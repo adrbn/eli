@@ -6,7 +6,8 @@ import { Face } from './face.js';
 import { Segmenter } from './hotword.js';
 import { Sleeper, wakeTime } from './sleep.js';
 import { GREEN, LOOKS, Notes, mixColor } from './looks.js';
-import { THEMES, getCustom, setCustom, setInk, themeById } from './themes.js';
+import { THEMES, getCustom, setCustom, setInk, themeById, useFaces } from './themes.js';
+import { loadFaces } from './faceview.js';
 import * as devlog from './devlog.js';
 import { initLibrary } from './library.js';
 import { initOnboarding } from './onboarding.js';
@@ -91,6 +92,10 @@ const sleeper = new Sleeper(player);
 const screenCtx = el.screen.getContext('2d');
 const previews = [];
 
+// ?faces=format : tous les visages viennent de leurs fichiers (web/faces), pour comparer avec le code.
+if (params.get('faces') === 'format') {
+  try { useFaces(await loadFaces()) } catch (err) { console.error('faces:', err) }
+}
 let theme = themeById(store.get('theme', 'pixel')) || THEMES[0];
 let draw = theme.make();
 let online = false, info = null, statusText = '';

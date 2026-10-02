@@ -1,4 +1,3 @@
-// web/tests/faceexpr.test.mjs
 // The formula language of .eliface faces: `node --test web/tests`.
 import assert from 'node:assert/strict';
 import test from 'node:test';

@@ -1,4 +1,3 @@
-// web/tests/faceparity.test.mjs
 // The .eliface files against the code faces they replace, cell by cell: `node --test web/tests`.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';

@@ -2,6 +2,7 @@
 // que le rendu, jamais le comportement. Famille Pixel : un écran OLED 128×64 simulé pixel par pixel, ou une
 // matrice de LED (AMOLED). Famille Trait : du vectoriel pour écran rond. Sur l'ESP32, un thème = une fonction de dessin.
 import { Mask, SCENE, behind, catAnchors, drawExtras, drawScene, pixAnchors } from './looks.js';
+import { formatAnchors, formatLit } from './faceview.js';
 
 let G = '#46ff86', DIM = '#0e2a18', LIT = 0xff86ff46; // l'encre (LIT en ABGR, little-endian) : voir setInk
 const OFF = 0xff000000;
@@ -24,6 +25,13 @@ export const SCREENS = { rect: 2, round: 1, wide: 4 / 3 }; // largeur / hauteur
 let custom = { cols: 40, shape: 'perle', bg: true };
 export const getCustom = () => custom;
 export const setCustom = (next) => { custom = { ...custom, ...next } };
+
+// ?faces=format : chaque thème dessine son fichier .eliface (web/faces) au lieu du code ci-dessous, gardé comme
+// référence. Le choix se fait quand le thème est créé (make), donc useFaces passe avant le premier make.
+let FACES = {};
+export const useFaces = (faces) => { FACES = faces };
+const grid = (id, code, space = 'wide') => (FACES[id] ? formatLit(FACES[id].face, space) : code);
+const marks = (id, code) => (FACES[id] ? formatAnchors(FACES[id].face, code) : code);
 
 // Distance signée à un rectangle arrondi (négative dedans).
 function sdBox(px, py, bx, by, r) {
@@ -370,11 +378,13 @@ function matLit(f, u, v) {
   return (u / (rx - 0.11)) ** 2 + ((v - my) / (ry - 0.11)) ** 2 > 1 ? 1 : 0; // bouche ouverte : seulement le contour
 }
 
-function matrice() {
+const MAT_MIN_H = 1.1 / 19; // la matrice n'a pas de lignes : une valeur pour les fichiers qui lisent minH
+
+function matrice(lit = matLit) {
   const N = 19, F = new Float32Array(N * N), face = new Uint8Array(N * N), mask = new Mask();
   return (ctx, W, H, f, dt) => {
     mask.render(f, pixAnchors(f), f.look, f.notes, N, N, [0.4625 * N, 0.0375 * N, 0.725 * N, 0.1245 * N]);
-    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) face[j * N + i] = front(mask.at(i, j)) || matLit(f, -1 + ((i + 0.5) * 2) / N, -1 + ((j + 0.5) * 2) / N);
+    for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) face[j * N + i] = front(mask.at(i, j)) || lit(f, -1 + ((i + 0.5) * 2) / N, -1 + ((j + 0.5) * 2) / N, MAT_MIN_H);
     const c = Math.min(W, H) / N, X = (W - c * N) / 2, Y = (H - c * N) / 2;
     const each = (fn) => {
       for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
@@ -442,19 +452,19 @@ const BLOC = [[0, 0], [1, 0], [0, 1], [1, 1]];
 const PLUS = [[1, 0], [0, 1], [1, 1], [2, 1], [1, 2]];
 
 export const THEMES = [
-  { id: 'pixel', name: 'Pixel', family: 'Pixel', screen: 'rect', note: 'OLED 128×64, chaque pixel', make: () => oled(128, 1, [[0, 0]]) },
-  { id: 'blocs', name: 'Blocs', family: 'Pixel', screen: 'rect', note: 'OLED, gros pixels carrés', make: () => oled(42, 3, BLOC) },
-  { id: 'perles', name: 'Perles', family: 'Pixel', screen: 'rect', note: 'OLED, pixels en croix', make: () => oled(32, 4, PLUS) },
-  { id: 'perles-fond', name: 'Perles allumées', family: 'Pixel', screen: 'rect', note: 'LED couleur, fond visible', make: () => dots(() => ({ cols: 28, shape: 'perle', bg: true })) },
-  { id: 'grille', name: 'Sur mesure', family: 'Pixel', screen: 'rect', note: 'densité, forme, fond', make: () => dots(getCustom) },
+  { id: 'pixel', name: 'Pixel', family: 'Pixel', screen: 'rect', note: 'OLED 128×64, chaque pixel', make: () => oled(128, 1, [[0, 0]], grid('pixel', pixLit), marks('pixel', pixAnchors)) },
+  { id: 'blocs', name: 'Blocs', family: 'Pixel', screen: 'rect', note: 'OLED, gros pixels carrés', make: () => oled(42, 3, BLOC, grid('blocs', pixLit), marks('blocs', pixAnchors)) },
+  { id: 'perles', name: 'Perles', family: 'Pixel', screen: 'rect', note: 'OLED, pixels en croix', make: () => oled(32, 4, PLUS, grid('perles', pixLit), marks('perles', pixAnchors)) },
+  { id: 'perles-fond', name: 'Perles allumées', family: 'Pixel', screen: 'rect', note: 'LED couleur, fond visible', make: () => dots(() => ({ cols: 28, shape: 'perle', bg: true }), grid('perles-fond', pixLit), marks('perles-fond', pixAnchors)) },
+  { id: 'grille', name: 'Sur mesure', family: 'Pixel', screen: 'rect', note: 'densité, forme, fond', make: () => dots(getCustom, grid('grille', pixLit), marks('grille', pixAnchors)) },
   { id: 'trait', name: 'Trait', family: 'Trait', screen: 'free', note: 'yeux ronds, lèvres', make: () => vector(220, 220, traitClassic) },
   { id: 'trait-doux', name: 'Doux', family: 'Trait', screen: 'free', note: 'yeux arrondis pleins', make: () => vector(220, 220, traitSoft(false, false)) },
   { id: 'trait-contour', name: 'Contour', family: 'Trait', screen: 'free', note: 'tout en contours', make: () => vector(220, 220, traitSoft(true, false)) },
   { id: 'trait-neon', name: 'Néon', family: 'Trait', screen: 'free', note: 'contours lumineux', make: () => vector(220, 220, traitSoft(true, true)) },
-  { id: 'chat-pixel', name: 'Chat pixel', family: 'Chats', screen: 'rect', note: 'OLED, oreilles qui frémissent', make: () => oled(128, 1, [[0, 0]], catLit, catAnchors) },
-  { id: 'chat-perles', name: 'Chat perles', family: 'Chats', screen: 'rect', note: 'LED couleur, fond visible', make: () => dots(() => ({ cols: 52, shape: 'perle', bg: true }), catLit, catAnchors) },
+  { id: 'chat-pixel', name: 'Chat pixel', family: 'Chats', screen: 'rect', note: 'OLED, oreilles qui frémissent', make: () => oled(128, 1, [[0, 0]], grid('chat-pixel', catLit), marks('chat-pixel', catAnchors)) },
+  { id: 'chat-perles', name: 'Chat perles', family: 'Chats', screen: 'rect', note: 'LED couleur, fond visible', make: () => dots(() => ({ cols: 52, shape: 'perle', bg: true }), grid('chat-perles', catLit), marks('chat-perles', catAnchors)) },
   { id: 'chaton', name: 'Chaton', family: 'Chats', screen: 'free', note: 'grands yeux, joues roses', make: () => vector(220, 220, kitten, 0, [120, -10, 62], catAnchors) },
-  { id: 'matrice', name: 'Matrice', family: 'Autres', screen: 'round', note: 'LED rondes 19×19', make: matrice },
+  { id: 'matrice', name: 'Matrice', family: 'Autres', screen: 'round', note: 'LED rondes 19×19', make: () => matrice(grid('matrice', matLit, 'square')) },
   { id: 'oscillo', name: 'Oscillo', family: 'Autres', screen: 'free', note: 'trace d’oscilloscope', make: () => vector(264, 198, oscillo, 23, [130, 2, 19.6]) },
 ];
 

@@ -1,4 +1,3 @@
-// web/js/faceformat.js
 // .eliface faces: compile the JSON once, evaluate it once per frame, then test points. Pure: no DOM.
 // Painter's rule: shapes are tested from the last to the first, and the first that holds decides the point.
 import { box, compileExpr } from './faceexpr.js';

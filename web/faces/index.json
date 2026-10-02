@@ -1,0 +1,10 @@
+{
+  "pixel": { "face": "pixel" },
+  "blocs": { "face": "pixel" },
+  "perles": { "face": "pixel" },
+  "perles-fond": { "face": "pixel" },
+  "grille": { "face": "pixel" },
+  "chat-pixel": { "face": "chat-pixel" },
+  "chat-perles": { "face": "chat-pixel" },
+  "matrice": { "face": "matrice" }
+}

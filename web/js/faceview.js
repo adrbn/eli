@@ -1,4 +1,5 @@
-// web/js/faceview.js
+import { compileFace } from './faceformat.js';
+
 // The glue between .eliface faces and the displays of themes.js: the grids ask "is this cell lit?", the vector
 // display draws the shapes. No DOM at module level, so the tests can import it.
 
@@ -18,3 +19,22 @@ export function formatLit(face, display = 'wide') {
 }
 
 export const formatAnchors = (face, fallback) => (f) => face.anchors(f) ?? fallback(f);
+
+// index.json: theme id → { face, glow? }. Each .eliface file is fetched and compiled once.
+export async function loadFaces(base = 'faces/', get = fetch) {
+  const res = await get(`${base}index.json`);
+  if (!res.ok) throw new Error(`${base}index.json: ${res.status}`);
+  const index = await res.json(), files = new Map();
+  const compiled = (name) => {
+    if (!files.has(name)) {
+      files.set(name, get(`${base}${name}.eliface`).then(async (r) => {
+        if (!r.ok) throw new Error(`${name}.eliface: ${r.status}`);
+        const text = await r.text();
+        try { return compileFace(text) } catch (err) { throw new Error(`${name}.eliface: ${err.message}`) }
+      }));
+    }
+    return files.get(name);
+  };
+  const entries = await Promise.all(Object.entries(index).map(async ([id, { face, ...opts }]) => [id, { face: await compiled(face), ...opts }]));
+  return Object.fromEntries(entries);
+}
