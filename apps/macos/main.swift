@@ -266,13 +266,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, NSMe
             <style>\#(pixelFont)
             html,body{margin:0;height:100%;background:#000;overflow:hidden}
             body{display:grid;place-content:center;justify-items:center;gap:28px;padding:40px 16px;box-sizing:border-box}
-            .bezel{padding:clamp(10px,1.8vw,22px);background:linear-gradient(160deg,#141714,#0a0b0a);border-radius:clamp(18px,3vw,34px);box-shadow:0 0 0 1px #1c201c,inset 0 1px 0 #ffffff0d,0 30px 60px -20px #000c}
             canvas{display:block;image-rendering:pixelated;border-radius:6px}
             p{margin:0;max-width:34ch;text-align:center;font:22px/33px px,ui-monospace,monospace;color:#d6eadb}
             p:empty{display:none}
-            @media (max-width:479px){body{padding:0;gap:12px}.bezel{padding:0;background:none;box-shadow:none}p{font-size:11px;line-height:16px}}
+            @media (max-width:479px){body{padding:0;gap:12px}p{font-size:11px;line-height:16px}}
             </style>
-            <div class="bezel"><canvas role="img" aria-label="\#(L("Eli se réveille", "Eli is waking up"))"></canvas></div><p>\#(message)</p>
+            <canvas role="img" aria-label="\#(L("Eli se réveille", "Eli is waking up"))"></canvas><p>\#(message)</p>
             <script>
             const cv = document.querySelector('canvas'), ctx = cv.getContext('2d'), still = matchMedia('(prefers-reduced-motion: reduce)').matches;
             const off = new OffscreenCanvas(128, 64), o = off.getContext('2d'), img = o.createImageData(128, 64), px = new Uint32Array(img.data.buffer);

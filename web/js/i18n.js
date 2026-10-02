@@ -24,6 +24,7 @@ export const EN = {
   'Maintiens pour parler': 'Hold to talk',
   'Écris-lui quelque chose…': 'Say something to him…',
   'Message pour Eli': 'Message for Eli',
+  'Écrire à Eli (Entrée)': 'Write to Eli (Enter)',
   'Connexion…': 'Connecting…',
   'Réglages': 'Settings',
   'Clé Groq': 'Groq key',
