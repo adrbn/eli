@@ -5,7 +5,9 @@ will with the ESP32: changing FACE_URL will be enough.
 """
 from __future__ import annotations
 
+import array
 import datetime
+import io
 import json
 import logging
 import random
@@ -16,6 +18,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import uuid
+import wave
 from pathlib import Path
 from typing import Callable, Iterator
 
@@ -126,6 +129,17 @@ def intro_hint(left: int, lang: str = "fr") -> str:
 _HALLUCINATIONS = re.compile(
     r"amara\.org|sous-titr|merci d'avoir regardé|abonnez-vous|thanks? (you )?for watching|^\W*$", re.IGNORECASE
 )
+def _level(wav: bytes) -> str:
+    try:
+        with wave.open(io.BytesIO(wav)) as w:
+            pcm = array.array("h", w.readframes(w.getnframes())) if w.getsampwidth() == 2 else None
+            secs = w.getnframes() / w.getframerate()
+    except (wave.Error, EOFError):
+        return f"{len(wav)} bytes of unreadable audio"
+    peak = max(map(abs, pcm)) / 32768 if pcm else 0
+    return f"{secs:.1f} s, peak {peak:.3f}"
+
+
 _EMOJI = re.compile("[\U0001F000-\U0001FAFF☀-➿️‍]")
 _END = re.compile(r"([.!?…]+[\"»)\]]*)\s+")
 _ABBR = {"m", "mm", "mme", "mlle", "dr", "pr", "st", "ste", "cf", "ex", "vs", "p", "av", "bd", "mr", "mrs", "ms", "jr", "sr"}
@@ -401,6 +415,8 @@ class Brain:
         text, provider = self.transcribe(wav)
         if _HALLUCINATIONS.search(text):
             text = ""
+        if not text:  # tells a silent microphone from a transcription that came back empty
+            log.info("heard nothing (%s): %r from %s", provider, text, _level(wav))
         if not self.alive(turn):
             return ""
         self.publish("brain", {"stage": "heard", "text": text, "provider": provider})

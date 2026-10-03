@@ -1,4 +1,4 @@
-"""Voice isolated by MDX-Net (UVR model Kim_Vocal_2, ONNX): ~1.8× real time on this Mac, block by block.
+"""Voice isolated by MDX-Net (UVR model Kim_Vocal_2, ONNX): ~7× real time on an M1's GPU, block by block.
 
 Each block is 5.75 s long and takes ~3 s to compute: processed in order, the voice runs ahead of playback
 from the first block, and the face sings from the very first listen.
@@ -64,7 +64,11 @@ class Separator:
 
         opts = ort.SessionOptions()
         opts.intra_op_num_threads = threads  # measured: 4 cores (the M1's "performance" ones) beat 8
-        self.session = ort.InferenceSession(str(model), opts, providers=["CPUExecutionProvider"])
+        # on a Mac, the GPU through CoreML: ~0.8 s a block instead of 4 to 11 on the CPU, so the voice stays ahead of
+        # the song (the Neural Engine is no faster here, and its model compile is flaky on macOS betas)
+        gpu = ("CoreMLExecutionProvider", {"MLComputeUnits": "CPUAndGPU", "ModelFormat": "MLProgram"})
+        providers = [gpu] if "CoreMLExecutionProvider" in ort.get_available_providers() else []
+        self.session = ort.InferenceSession(str(model), opts, providers=[*providers, "CPUExecutionProvider"])
 
     def blocks(self, mix: np.ndarray) -> Iterator[tuple[int, int, np.ndarray]]:
         """For each block, in order: (index, number of blocks, this block's mono 16 kHz voice)."""
