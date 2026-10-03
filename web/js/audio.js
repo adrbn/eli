@@ -282,18 +282,19 @@ export class Mic {
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
       this.src = ctx.createMediaStreamSource(this.stream);
-      this.node = ctx.createScriptProcessor(4096, 1, 1);
+      this.worklet ||= ctx.audioWorklet.addModule(new URL('./capture-worklet.js', import.meta.url));
+      await this.worklet;
+      this.node = new AudioWorkletNode(ctx, 'capture', { channelCount: 1, channelCountMode: 'explicit' });
       this.mute = ctx.createGain();
       this.mute.gain.value = 0; // le nœud doit être relié à la sortie pour tourner, mais sans s'entendre
       this.src.connect(this.node);
       this.node.connect(this.mute);
       this.mute.connect(ctx.destination);
-      this.node.onaudioprocess = (event) => {
-        const x = event.inputBuffer.getChannelData(0);
+      this.node.port.onmessage = ({ data: x }) => {
         let s = 0;
         for (let i = 0; i < x.length; i++) s += x[i] * x[i];
         this.level = Math.min(1, Math.max(0, (10 * Math.log10(s / x.length + 1e-12) + 60) / 45));
-        if (this.chunks) this.chunks.push(x.slice());
+        if (this.chunks) this.chunks.push(x);
         for (const tap of this.taps) tap(x, this.level);
       };
     }

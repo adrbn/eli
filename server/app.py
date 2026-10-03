@@ -42,6 +42,7 @@ Role 2 · the brain (brain.py), which only talks to the screen through this prot
 """
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import io
 import ipaddress
@@ -746,6 +747,10 @@ class Handler(BaseHTTPRequestHandler):
     def _post_listen(self, _query: dict) -> None:
         data = self._audio_body()
         if data is not None:
+            # only the last sentence, overwritten each time and never sent anywhere: what to listen to when
+            # Eli misunderstands (a choppy mic, a muffled one, or the transcription itself)
+            with contextlib.suppress(OSError):
+                (CACHE / "last-heard.wav").write_bytes(data)
             self._json(202, {"ok": True, "turn": self.app.brain.start("listen", data)})
 
     def _text_turn(self, kind: str) -> None:
