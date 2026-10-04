@@ -17,7 +17,7 @@
   },
   "shapes": [
     { "region": "box(x - 1, y - 0.82, mw, mh, y < 0.82 ? k*(0.3 + r*0.7) : k)*(1 - r) + r*(hypot((x - 1)/mw, (y - 0.82)/mh) - 1)*k <= 0" },
-    { "cut": { "region": "abs(y - 0.82) < 0.018" }, "when": "t > 0.5 && mh > 0.05" },
+    { "cut": { "region": "abs(y - 0.82) < 0.018 && abs(x - 1) < mw - 0.03 - minH" }, "when": "t > 0.5 && mh > 0.05" },
     { "mirror": true, "group": [
       { "rect": ["ex", "ey", "hw", "hh"], "radius": "er",
         "clip": { "outside": { "region": "ang && y - (ey - hh) < hh*(ang > 0 ? ang*1.1*clamp((1 - s*(x - ex)/hw)/2, 0, 1) : -ang*0.9*(1 - clamp((1 - s*(x - ex)/hw)/2, 0, 1)))" } } },

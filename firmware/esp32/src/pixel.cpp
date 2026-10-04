@@ -42,7 +42,8 @@ static bool pixLit(const FaceOut& f, float x, float y, float minH) {
   const float mw = 0.075f + m.w * 0.09f - m.r * 0.045f, mh = std::max(minH, 0.022f + m.o * 0.075f + m.r * 0.012f);
   const float dy = y - 0.82f;
   if (sdBox(x - 1, dy, mw, mh, std::min(mw, mh) * (0.7f + m.r * 0.3f)) > 0) return false;
-  return !(m.t > 0.5f && mh > 0.05f && fabsf(dy) < 0.018f);  // teeth: an unlit line across the middle
+  // teeth: a straight unlit slit across the middle that stops short of the corners, so the mouth never splits in two
+  return !(m.t > 0.5f && mh > 0.05f && fabsf(dy) < 0.018f && fabsf(x - 1) < mw - 0.03f - minH);
 }
 
 // themes.js oled(cols, cell, pattern): a grid of cols x cols/2 cells of `cell` pixels, `pattern` = lit pixels per cell.

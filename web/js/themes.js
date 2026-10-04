@@ -64,7 +64,8 @@ function pixLit(f, x, y, minH) {
   const k = Math.min(mw, mh), dy = y - 0.82;
   const d = sdBox(x - 1, dy, mw, mh, dy < 0 ? k * (0.3 + m.r * 0.7) : k);
   if (d + m.r * ((Math.hypot((x - 1) / mw, dy / mh) - 1) * k - d) > 0) return false;
-  return !(m.t > 0.5 && mh > 0.05 && Math.abs(dy) < 0.018); // les dents : une ligne éteinte au milieu
+  // les dents : une fente droite au milieu, qui s'arrête avant les coins : la bouche ne se coupe jamais en deux
+  return !(m.t > 0.5 && mh > 0.05 && Math.abs(dy) < 0.018 && Math.abs(x - 1) < mw - 0.03 - minH);
 }
 
 // Distance d'un point à un segment.
