@@ -27,10 +27,12 @@ import meow
 import piper_text
 import tags
 from keys import BadKey, check_llm as list_models
-from navidrome import BITRATE, MusicError
+from navidrome import BITRATE, MAYBE, MusicError
 from memory import Memory
 
 log = logging.getLogger("eli.brain")
+YES = re.compile(r"\W*(?:oui|ouais|yes|yeah|yep|exact|exactement|c'est ça|vas-y|go|ok|d'accord|carrément)\b", re.I)
+SPELLED = re.compile(r"\b(?:[^\W\d_][-. ]){2,}[^\W\d_]\b")  # "O-T-T-O": a name spelled out letter by letter
 SIMILAR = re.compile(r"pareil|similaire|similar|same|more like this", re.I)  # [music: similar]: one like the song playing
 
 GROQ = "https://api.groq.com/openai/v1"
@@ -87,6 +89,7 @@ LINES = {
         "no_brain": "Je n'ai pas encore de cerveau branché : il manque la clé Groq, ou l'adresse d'un LLM local.",
         "need_music": "Pour ça, il me faut l'accès à ta bibliothèque Navidrome. Je t'ouvre le formulaire.",
         "not_found": "Je n'ai rien trouvé pour ça dans ta bibliothèque.",
+        "maybe": "Tu veux dire « {title} » de {artist} ?",
         "music_down": "Je n'arrive pas à joindre ta musique.",
         "new_voice": "Voilà ma nouvelle voix. Elle te plaît ?",
         "cat_on": "Miaou ! Voilà ma voix de chat.",
@@ -98,6 +101,7 @@ LINES = {
         "no_brain": "I don't have a brain plugged in yet: the Groq key is missing, or the address of a local LLM.",
         "need_music": "For that, I need access to your Navidrome library. I'm opening the form for you.",
         "not_found": "I couldn't find anything for that in your library.",
+        "maybe": "Do you mean \u201c{title}\u201d by {artist}?",
         "music_down": "I can't reach your music.",
         "new_voice": "Here's my new voice. Do you like it?",
         "cat_on": "Meow! Here's my cat voice.",
@@ -313,6 +317,7 @@ class Brain:
         self.played: list[dict] = []  # the songs sung, for previous / next
         self.place = -1  # the latest song asked for: only a newer one or a real stop drops it (not a new sentence)
         self.logged = 0  # last turn written to the history
+        self.maybe: dict | None = None  # the song he asked "do you mean…?" about: a yes plays it
         self.memory = Memory(Path(cfg["MEMORY_DIR"]) if cfg.get("MEMORY_DIR") else None, self._digest, lang=lang)
         persona_file = Path(cfg.get("PERSONA_FILE") or "")
         self.persona = persona_file.read_text("utf-8").strip() if persona_file.is_file() else None
@@ -441,6 +446,11 @@ class Brain:
     # --- mouth --------------------------------------------------------------------------------
     def _answer(self, turn: int, user_text: str) -> None:
         log.info("heard: %s", user_text[:300])
+        maybe, self.maybe = self.maybe, None
+        if maybe and YES.match(user_text):  # "do you mean…?" "yes": no need to ask the LLM
+            self.publish("brain", {"stage": "fetch", "text": f"{maybe['artist']} – {maybe['title']}".strip(" –")})
+            self.sing(maybe)
+            return
         if not self.has_llm():
             self.publish("setup", {"need": "groq"})  # the page opens Settings at the key field
             self._say(turn, self.line("no_brain"), [])
@@ -484,7 +494,7 @@ class Brain:
         if self.alive(turn):
             self.publish("brain", {"stage": "done", "text": reply})
         if songs and self.alive(turn):
-            self._play(turn, songs[-1])
+            self._play(turn, songs[-1], user_text)
         if sleep and self.alive(turn):  # the page falls asleep once he's done talking
             self.publish("sleep", {"at": sleep[-1], "turn": turn})
 
@@ -552,8 +562,11 @@ class Brain:
             self.face.clip(wav, "speech", shown, turn, phonemes, mood)
             said.append(shown)
 
-    def _play(self, turn: int, query: str) -> None:
-        """[music: …]: finds the song in the library and sends it to the face, which sings it."""
+    def _play(self, turn: int, query: str, heard: str = "") -> None:
+        """[music: …]: finds the song in the library and sends it to the face, which sings it. heard: the user's own
+        words, for a name spelled out letter by letter that the LLM rewrote from an earlier mishearing."""
+        spelled = " ".join(re.sub(r"[-. ]", "", m) for m in SPELLED.findall(heard))
+        query = f"{spelled} {query}".strip()
         if not self.music or not self.music.auth:  # the page opens the form at the right place
             self.publish("setup", {"need": "navidrome"})
             self._say(turn, self.line("need_music"), [])
@@ -569,7 +582,12 @@ class Brain:
                 if song and now and song["id"] == now["id"]:  # "not this one, another like it": it names it again
                     song = self.music.similar(now, avoid) or song
             if not song:
-                self._say(turn, self.line("not_found"), [], "gêne")
+                score, self.maybe = self.music.guess(query)
+                if self.maybe and score >= MAYBE:
+                    self._say(turn, self.line("maybe").format(**self.maybe), [], "gêne")
+                else:
+                    self.maybe = None
+                    self._say(turn, self.line("not_found"), [], "gêne")
                 return
             self.publish("brain", {"stage": "fetch", "text": f"{song['artist']} – {song['title']}".strip(" –")})
             self.sing(song)  # his own sentence came before the search; the page shows the title, he doesn't read it out

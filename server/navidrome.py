@@ -23,6 +23,8 @@ JOIN = re.compile(r"\s+(?:et|and|&|x|feat\.?|ft\.?|avec|with|featuring)\s+", re.
 NAMES = re.compile(r"\s*(?:•|,|&|/|;)\s*|\s+(?:feat\.?|ft\.?|x|et|and|with|avec)\s+")  # "A • B", "A feat. B": one name each
 BITRATE = 128  # kb/s: a 4 min song ≈ 4 MB, reasonable even through a slow VPN
 
+SURE, MAYBE = 0.8, 0.6  # ponytail: fixed thresholds, tuned on a handful of mishearings
+
 
 def _sound(word: str) -> str:
     """A crude sound key, French ears on English names: accents, "au"→"o", silent w/h, doubled letters, final e/s."""
@@ -32,9 +34,10 @@ def _sound(word: str) -> str:
 
 
 def sound_score(words: list[str], artist: str, title: str) -> float:
-    """0..1: how well each spoken word sounds like some word of the song (or its whole artist name glued)."""
+    """0..1: how well the worst spoken word (3 letters or more) sounds like some word of the song, or its whole artist
+    name glued. The worst, not the mean: a perfect "Stromae" must not carry a "Formidable" the library doesn't have."""
     hay = [_sound(h) for h in re.findall(r"\w+", f"{artist} {title}")] + [_sound("".join(re.findall(r"\w+", artist)))]
-    return sum(max(SequenceMatcher(None, _sound(w), h).ratio() for h in hay) for w in words) / max(len(words), 1)
+    return min((max(SequenceMatcher(None, _sound(w), h).ratio() for h in hay) for w in words if len(w) > 2), default=0.0)
 
 
 class MusicError(Exception):
@@ -139,7 +142,8 @@ class Navidrome:
         if not songs:  # "play some jazz": not a title, maybe a genre
             songs = self._call(self.auth, "getRandomSongs", size=1, genre=query.strip().title()).get("randomSongs", {}).get("song", [])
         if not songs:  # misheard name ("Autonose" for Otto Knows): any word, ranked by how it sounds
-            songs = self._fuzzy(query)
+            score, song = self.guess(query)
+            return song if score >= SURE else None
         if not songs:
             return None
         return self._song(self._pick(query, songs, avoid))
@@ -170,12 +174,13 @@ class Navidrome:
             return songs[0]
         return random.choice([s for s in exact if s.get("id") not in avoid] or exact)
 
-    def _fuzzy(self, query: str) -> list[dict]:
+    def guess(self, query: str) -> tuple[float, dict | None]:
+        """The raw song that sounds most like the request, and how much (0..1): SURE plays it, MAYBE asks first."""
         words = re.findall(r"\w+", query)
         hits = {s.get("id"): s for w in words if len(w) > 2 for s in self._search(w, 50)}.values()
         scored = [(sound_score(words, s.get("artist") or "", s.get("title") or ""), s) for s in hits]
-        best = max(scored, key=lambda x: x[0], default=(0, None))
-        return [best[1]] if best[0] >= 0.7 else []  # ponytail: fixed threshold, tuned on a handful of mishearings
+        score, best = max(scored, key=lambda x: x[0], default=(0.0, None))
+        return score, best and self._song(best)
 
     def _duet(self, query: str) -> list[dict]:
         """"A et B": the server files a duet under one name only; prefer a hit that mentions the other one."""
@@ -236,6 +241,6 @@ if __name__ == "__main__":
            {"id": "t", "artist": "Taylor Swift", "title": "Lover"}]
     fake._search = lambda q, n: [s for s in lib if q.casefold() in f"{s['artist']} {s['title']}".casefold()]
     fake._call = lambda *a, **k: {}
-    assert fake.find("My Lover Autonose")["id"] == "o" and fake.find("Autonose O2TO espace KNOWS")["id"] == "o"
+    assert fake.find("My Lover Autonose")["id"] == "o" and fake.find("OTTOKNOWS My Lover")["id"] == "o"
     assert fake.find("Despacito Fonsi") is None, "no sound-alike: nothing rather than a random lover"
     print("ok")
