@@ -125,7 +125,7 @@ export function analyzeSpeech(x, minRef = -Infinity, pitch = false) {
   for (let f = 0; f < n; f++) {
     const level = db[f] < FLOOR_DB || db[f] < ref - 34 ? 0 : clamp((db[f] - (ref - 32)) / 28);
     const fric = smooth(0.25, 0.6, fr[f]);
-    const to = level ? level ** 0.8 * (0.35 + 0.65 * smooth(0.25, 0.75, f1[f])) * (1 - 0.6 * fric) * dip[f] : 0;
+    const to = level ? level ** 0.8 * (0.35 + 0.65 * smooth(0.25, 0.75, f1[f])) * (1 - 0.4 * fric) * dip[f] : 0;
     const tw = level ? 0.25 + 0.75 * smooth(0.15, 0.55, f2[f]) : 0.3;
     const tr = level > 0.15 ? smooth(0.6, 0.9, lo[f]) * (1 - smooth(0.1, 0.4, f2[f])) : 0;
     o[f] = spring(m.o, to, to > m.o.x ? 85 : to === 0 ? 110 : 65); // s'ouvre vite, se ferme encore plus vite au silence
@@ -259,7 +259,7 @@ const VISEMES = {};
 for (const [chars, v] of [
   ['aɑɐæʌ', [1, 0.55, 0, 0]], ['ɛeɜɚ', [0.6, 0.8, 0, 0.2]], ['iɪj', [0.3, 1, 0, 0.4]], ['əœøɵ', [0.45, 0.35, 0.5, 0]],
   ['y', [0.2, 0.1, 0.9, 0]], ['uʊwɥ', [0.22, 0, 1, 0]], ['oɔɒ', [0.6, 0.2, 0.8, 0]], ['mbp', [0, 0.45, 0, 0]],
-  ['fv', [0.08, 0.5, 0, 1]], ['szθð', [0.15, 0.75, 0, 1]], ['ʃʒ', [0.25, 0.2, 0.75, 0.8]], ['tdnlɾ', [0.25, 0.55, 0, 0.4]],
+  ['fv', [0.08, 0.5, 0, 1]], ['szθð', [0.22, 0.5, 0, 1]], ['ʃʒ', [0.25, 0.2, 0.75, 0.8]], ['tdnlɾ', [0.25, 0.55, 0, 0.4]],
   ['kgɡŋʁɹhxχ', [0.35, 0.45, 0.1, 0]], ['ɲ', [0.25, 0.6, 0, 0.2]],
 ]) for (const c of chars) VISEMES[c] = v;
 const LEAD = 0.04; // les lèvres se placent un peu avant le son (et les ressorts mettent ~2/k à suivre)
