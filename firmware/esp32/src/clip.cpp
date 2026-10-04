@@ -100,7 +100,19 @@ static const Viseme VISEMES[] = {
 };
 static const float LETTER[4] = {0.3f, 0.4f, 0, 0};  // a letter not in the table
 static const float REST4[4] = {0, 0.3f, 0, 0};
-constexpr uint32_t LEAD_MS = 30;  // lips move a little before the sound
+constexpr uint32_t LEAD_MS = 40;  // lips move a little before the sound (and the springs take ~2/k to follow)
+
+// A muscle, not a magnet: critically damped spring solved exactly over one 10 ms step. It starts gently and lands
+// without overshoot, where plain smoothing starts at full speed and makes the mouth jump. k: stiffness (rad/s).
+struct Spring {
+  float x, v = 0;
+  float to(float target, float k) {
+    const float e = x - target, j = (v + k * e) * 0.01f, d = expf(-k * 0.01f);
+    x = target + (e + j) * d;
+    v = (v - k * j) * d;
+    return x;
+  }
+};
 
 // Next code point of UTF-8 text at *p (advances p), or -1 if malformed.
 static long nextCp(const unsigned char*& p, const unsigned char* end) {
@@ -163,17 +175,16 @@ void visemeTrack(const std::vector<Phone>& phones, uint32_t n, float* vo, float*
   for (size_t i = spans.size(); i-- > 0;)  // stress marks belong to the phoneme after
     if (is(spans[i], 0x2C8) || is(spans[i], 0x2CC)) spans[i].v = i + 1 < spans.size() ? spans[i + 1].v : nullptr;
   size_t k = 0;
-  float o = 0, w = 0.3f, r = 0, th = 0;
+  Spring o{0}, w{0.3f}, r{0}, th{0};
   for (uint32_t f = 0; f < n; f++) {
     const uint32_t at = f * 10 + LEAD_MS;
     while (k + 1 < spans.size() && spans[k].end <= at) k++;
     const float* v = k < spans.size() && at >= spans[k].start && at < spans[k].end ? spans[k].v : nullptr;
     if (!v) v = REST4;
-    o += (v[0] - o) * (v[0] < 0.05f ? 0.7f : 0.45f);  // closures (m, b, p) snap shut
-    w += (v[1] - w) * 0.4f;
-    r += (v[2] - r) * 0.4f;
-    th += (v[3] - th) * 0.5f;
-    vo[f] = o; vw[f] = w; vr[f] = r; vt[f] = th;
+    vo[f] = o.to(v[0], v[0] < 0.05f ? 110 : 70);  // closures (m, b, p) snap shut
+    vw[f] = w.to(v[1], 45);
+    vr[f] = r.to(v[2], 38);  // rounding the lips is the slowest move
+    vt[f] = th.to(v[3], 50);
   }
 }
 

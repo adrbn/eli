@@ -121,18 +121,18 @@ export function analyzeSpeech(x, minRef = -Infinity, pitch = false) {
     for (let k = Math.max(0, f - 12); k <= Math.min(n - 1, f + 12); k++) peak = Math.max(peak, db[k]);
     dip[f] = 0.15 + 0.85 * smooth(-14, -4, db[f] - peak);
   }
-  let so = 0, sw = 0.3, sr = 0, st = 0;
+  const m = springs();
   for (let f = 0; f < n; f++) {
     const level = db[f] < FLOOR_DB || db[f] < ref - 34 ? 0 : clamp((db[f] - (ref - 32)) / 28);
     const fric = smooth(0.25, 0.6, fr[f]);
     const to = level ? level ** 0.8 * (0.35 + 0.65 * smooth(0.25, 0.75, f1[f])) * (1 - 0.6 * fric) * dip[f] : 0;
     const tw = level ? 0.25 + 0.75 * smooth(0.15, 0.55, f2[f]) : 0.3;
     const tr = level > 0.15 ? smooth(0.6, 0.9, lo[f]) * (1 - smooth(0.1, 0.4, f2[f])) : 0;
-    so += (to - so) * (to > so ? 0.6 : to === 0 ? 0.7 : 0.45); // s'ouvre vite, se ferme encore plus vite au silence
-    sw += (tw - sw) * 0.35;
-    sr += (tr - sr) * 0.35;
-    st += ((level > 0.1 ? fric : 0) - st) * 0.5;
-    lv[f] = level; o[f] = so; w[f] = sw; r[f] = sr; t[f] = st;
+    o[f] = spring(m.o, to, to > m.o.x ? 85 : to === 0 ? 110 : 65); // s'ouvre vite, se ferme encore plus vite au silence
+    w[f] = spring(m.w, tw, 40);
+    r[f] = spring(m.r, tr, 34);
+    t[f] = spring(m.t, level > 0.1 ? fric : 0, 50);
+    lv[f] = level;
   }
   const starts = [], pauses = [];
   for (let f = 0, quiet = 25; f < n; f++) {
@@ -243,6 +243,17 @@ export function sample(track, key, t) {
   return a[i] * (1 - k) + a[i + 1] * k;
 }
 
+// Un muscle plutôt qu'un aimant : ressort amorti critique, résolu exactement sur un pas. Il part en douceur et arrive
+// sans rebond, là où un lissage simple démarre à pleine vitesse et fait sauter la bouche d'une forme à l'autre.
+// k : raideur (rad/s), ~90 % du chemin en 3,9/k secondes.
+const spring = (s, to, k) => {
+  const e = s.x - to, j = (s.v + k * e) * HOP, d = Math.exp(-k * HOP);
+  s.x = to + (e + j) * d;
+  s.v = (s.v - k * j) * d;
+  return s.x;
+};
+const springs = () => ({ o: { x: 0, v: 0 }, w: { x: 0.3, v: 0 }, r: { x: 0, v: 0 }, t: { x: 0, v: 0 } });
+
 // Les lèvres de chaque phonème (alphabet d'espeak) : [ouverture, largeur, arrondi, dents].
 const VISEMES = {};
 for (const [chars, v] of [
@@ -251,7 +262,7 @@ for (const [chars, v] of [
   ['fv', [0.08, 0.5, 0, 1]], ['szθð', [0.15, 0.75, 0, 1]], ['ʃʒ', [0.25, 0.2, 0.75, 0.8]], ['tdnlɾ', [0.25, 0.55, 0, 0.4]],
   ['kgɡŋʁɹhxχ', [0.35, 0.45, 0.1, 0]], ['ɲ', [0.25, 0.6, 0, 0.2]],
 ]) for (const c of chars) VISEMES[c] = v;
-const LEAD = 0.03; // les lèvres se placent un peu avant le son
+const LEAD = 0.04; // les lèvres se placent un peu avant le son (et les ressorts mettent ~2/k à suivre)
 
 // Phonèmes alignés par la voix ([[phonème, ms], …]) → pistes de lèvres à 100 images/s. Les accents (ˈ) comptent
 // pour le phonème suivant, les longueurs (ː) et la nasale (◌̃) pour le précédent ; espaces et ponctuation = repos.
@@ -265,17 +276,17 @@ export function visemeTrack(phonemes, n) {
   spans.forEach((s, i) => { if (s.p === 'ː' || s.p === '\u0303') s.v = spans[i - 1]?.v ?? null });
   for (let i = spans.length - 1; i >= 0; i--) if (spans[i].p === 'ˈ' || spans[i].p === 'ˌ') spans[i].v = spans[i + 1]?.v ?? null;
   const vo = new Float32Array(n), vw = new Float32Array(n), vr = new Float32Array(n), vt = new Float32Array(n);
-  let k = 0, o = 0, w = 0.3, r = 0, th = 0;
+  let k = 0;
+  const m = springs();
   for (let f = 0; f < n; f++) {
     const at = f * HOP + LEAD;
     while (k < spans.length - 1 && spans[k].end <= at) k++;
     const v = spans[k] && at >= spans[k].start && at < spans[k].end ? spans[k].v : null;
     const [to, tw, tr, tt] = v || [0, 0.3, 0, 0];
-    o += (to - o) * (to < 0.05 ? 0.7 : 0.45); // les fermetures (m, b, p) claquent
-    w += (tw - w) * 0.4;
-    r += (tr - r) * 0.4;
-    th += (tt - th) * 0.5;
-    vo[f] = o; vw[f] = w; vr[f] = r; vt[f] = th;
+    vo[f] = spring(m.o, to, to < 0.05 ? 110 : 70); // les fermetures (m, b, p) claquent, l'ouverture suit le son
+    vw[f] = spring(m.w, tw, 45);
+    vr[f] = spring(m.r, tr, 38); // arrondir les lèvres est le geste le plus lent
+    vt[f] = spring(m.t, tt, 50);
   }
   return { vo, vw, vr, vt };
 }
