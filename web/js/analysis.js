@@ -276,12 +276,15 @@ export function visemeTrack(phonemes, n) {
   spans.forEach((s, i) => { if (s.p === 'ː' || s.p === '\u0303') s.v = spans[i - 1]?.v ?? null });
   for (let i = spans.length - 1; i >= 0; i--) if (spans[i].p === 'ˈ' || spans[i].p === 'ˌ') spans[i].v = spans[i + 1]?.v ?? null;
   const vo = new Float32Array(n), vw = new Float32Array(n), vr = new Float32Array(n), vt = new Float32Array(n);
-  let k = 0;
-  const m = springs();
+  const m = springs(), cur = { k: 0 }, ahead = { k: 0 };
+  const at = (c, t) => { // le visème à l'instant t (pointeur qui ne fait qu'avancer)
+    while (c.k < spans.length - 1 && spans[c.k].end <= t) c.k++;
+    const s = spans[c.k];
+    return s && t >= s.start && t < s.end ? s.v : null;
+  };
   for (let f = 0; f < n; f++) {
-    const at = f * HOP + LEAD;
-    while (k < spans.length - 1 && spans[k].end <= at) k++;
-    const v = spans[k] && at >= spans[k].start && at < spans[k].end ? spans[k].v : null;
+    // Les lèvres anticipent le son, sauf pour rouvrir : un « m », « b », « p » reste fermé jusqu'au bout.
+    const now = at(cur, f * HOP), next = at(ahead, f * HOP + LEAD), v = now && now[0] < 0.05 ? now : next;
     const [to, tw, tr, tt] = v || [0, 0.3, 0, 0];
     vo[f] = spring(m.o, to, to < 0.05 ? 110 : 70); // les fermetures (m, b, p) claquent, l'ouverture suit le son
     vw[f] = spring(m.w, tw, 45);

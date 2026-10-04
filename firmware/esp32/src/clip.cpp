@@ -174,12 +174,16 @@ void visemeTrack(const std::vector<Phone>& phones, uint32_t n, float* vo, float*
     if (is(spans[i], 0x2D0) || is(spans[i], 0x303)) spans[i].v = i ? spans[i - 1].v : nullptr;
   for (size_t i = spans.size(); i-- > 0;)  // stress marks belong to the phoneme after
     if (is(spans[i], 0x2C8) || is(spans[i], 0x2CC)) spans[i].v = i + 1 < spans.size() ? spans[i + 1].v : nullptr;
-  size_t k = 0;
+  size_t kc = 0, ka = 0;
+  auto at = [&](size_t& k, uint32_t t) -> const float* {  // the viseme at t (forward-only cursor)
+    while (k + 1 < spans.size() && spans[k].end <= t) k++;
+    return k < spans.size() && t >= spans[k].start && t < spans[k].end ? spans[k].v : nullptr;
+  };
   Spring o{0}, w{0.3f}, r{0}, th{0};
   for (uint32_t f = 0; f < n; f++) {
-    const uint32_t at = f * 10 + LEAD_MS;
-    while (k + 1 < spans.size() && spans[k].end <= at) k++;
-    const float* v = k < spans.size() && at >= spans[k].start && at < spans[k].end ? spans[k].v : nullptr;
+    // Lips anticipate the sound, except to reopen: an "m", "b", "p" stays shut to the end.
+    const float* now = at(kc, f * 10);
+    const float* v = now && now[0] < 0.05f ? now : at(ka, f * 10 + LEAD_MS);
     if (!v) v = REST4;
     vo[f] = o.to(v[0], v[0] < 0.05f ? 110 : 70);  // closures (m, b, p) snap shut
     vw[f] = w.to(v[1], 45);
