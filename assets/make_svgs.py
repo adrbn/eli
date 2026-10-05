@@ -276,15 +276,21 @@ def blink_at(t):
     return [(t, "half"), (t + 0.05, "shut"), (t + 0.12, "half"), (t + 0.17, "open")]
 
 
+def shift(tl, off, k=1):
+    """Moves a timeline to start at `off` in a longer loop (holding its first state before); k scales cell moves."""
+    sc = lambda v: (v[0] * k, v[1] * k) if isinstance(v, tuple) and k != 1 else v
+    tl = [(round(t + off, 3), sc(v)) for t, v in tl]
+    return [(0, tl[0][1])] + tl if off else tl
+
+
 def svg(w, h, body, title):
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}" width="{w}" height="{h}" role="img">'
             f'<title>{title}</title>{body}</svg>\n')
 
 
 # --- hero ----------------------------------------------------------------------------------------------------
-def hero(light):
+def hero_body(off=0, total=12, cols=128, cell=6):
     rng = random.Random(7)
-    T, cols, cell = 12, 128, 6
     talk1, talk2 = talk(rng, 2.9), talk(rng, 2.2)
     mouth_tl, _ = expand([(1.2, "rest")] + talk1 + [(0.4, "rest"), (2.2, "smile"), (0.3, "rest"), (1.9, "hum"),
                                                      (0.2, "rest")] + talk2 + [(5, "rest")])
@@ -293,10 +299,16 @@ def hero(light):
     gaze_tl = [(0, (0, 0)), (1.25, (-0.6, -0.45)), (1.9, (-0.2, -0.1)), (2.8, (0.15, 0.05)), (3.6, (0, 0)),
                (6.8, (1.05, -0.15)), (7.8, (0.3, -0.05)), (8.4, (0, 0)), (9.1, (0.6, -0.45)), (9.7, (0, 0)),
                (10.8, (-0.15, 0.1)), (11.4, (0, 0))]
-    body = face(cols, cell, eye_tl, gaze_tl, mouth_tl, T)
+    body = face(cols, cell, shift(eye_tl, off), shift(gaze_tl, off), shift(mouth_tl, off), total)
     heart_path = [(round(4.8 + i * 0.16, 2), (0, -i)) for i in range(10)]
-    body += sprite(HEART, cell, 108, 14, [(4.8, 6.4)], T, [(0, (0, 0))] + heart_path, n=2)
-    body += sprite(["#", ".", "#"], cell, 18, 22, [(6.85, 7.0), (7.15, 7.3)], T)  # tiny "!" twinkle when glancing
+    body += sprite(HEART, cell, 108, 14, [(4.8 + off, 6.4 + off)], total, shift([(0, (0, 0))] + heart_path, off), n=2)
+    body += sprite(["#", ".", "#"], cell, 18, 22, [(6.85 + off, 7.0 + off), (7.15 + off, 7.3 + off)], total)  # "!" twinkle
+    return body
+
+
+def hero(light):
+    cols, cell = 128, 6
+    body = hero_body()
     w, h, pad = cols * cell, cols // 2 * cell, 26
     dev = device("h", (960 - w - 2 * pad) / 2, 24, w, h, pad, 40, body, cell, light, glow=4, led=2.4)
     return svg(960, 530, dev, "Eli, a green pixel face that talks, blinks and smiles")
@@ -311,12 +323,18 @@ def card(uid, body, title, cell=CC, cols=CCOLS, extra=""):
     return svg(CARD_W, CARD_H, device(uid, (CARD_W - w - 2 * pad) / 2, 10, w, h, pad, 22, body, cell) + extra, title)
 
 
-def card_talk():
+def talk_body(off=0, total=None, cols=CCOLS, cell=CC):
+    """Returns (body, own duration)."""
     rng = random.Random(3)
     mouth_tl, T = expand([(0.4, "rest")] + talk(rng, 2.6) + [(0.6, "rest")] + talk(rng, 1.4) + [(0.5, "rest")])
     eye_tl = sorted([(0, "open")] + blink_at(3.1) + blink_at(5.0))
     gaze_tl = [(0, (0, 0)), (0.45, (-0.6, -0.45)), (1.1, (0, 0)), (3.4, (0.6, -0.45)), (4.0, (0, 0))]
-    return card("t", face(CCOLS, CC, eye_tl, gaze_tl, mouth_tl, T), "Eli talking")
+    s = lambda tl: shift(tl, off)
+    return face(cols, cell, s(eye_tl), s(gaze_tl), s(mouth_tl), total or T), T
+
+
+def card_talk():
+    return card("t", talk_body()[0], "Eli talking")
 
 
 def card_listen():
@@ -335,19 +353,27 @@ def card_listen():
     return svg(CARD_W, CARD_H, device("l", 32, 6, 256, 128, 14, 22, body, CC) + key, "Eli listening while Space is held")
 
 
-def card_sing():
-    T = 4.0
+def sing_body(off=0, total=4.0, cols=CCOLS, cell=CC, loops=1):
+    T, k = 4.0, cols // CCOLS
     beats = [i * 0.5 for i in range(8)]
     mouth_tl = [(0, "o"), (0.5, "O"), (1.0, "a"), (1.5, "OO"), (2.0, "u"), (2.5, "O"), (3.0, "OO"), (3.5, "o")]
     eye_tl = [(0, "happy"), (1.5, "squint"), (2.0, "happy"), (3.0, "squint"), (3.5, "happy")]
     gaze_tl = [(0, (-0.35, -0.2)), (1.0, (0.35, -0.2)), (1.5, (0.2, -0.65)), (2.0, (-0.35, -0.15)),
                (3.0, (0.3, -0.65)), (3.5, (0.35, -0.2))]
     bob = sorted([(b, (0, -1)) for b in beats] + [(b + 0.14, (0, 0)) for b in beats])
-    body = face(CCOLS, CC, eye_tl, gaze_tl, mouth_tl, T, bob_tl=[(0, (0, 0))] + bob)
+    rep = lambda tl: [(t + i * T, v) for i in range(loops) for t, v in tl]
+    s = lambda tl: shift(rep(tl), off, k)
+    body = face(cols, cell, s(eye_tl), shift(rep(gaze_tl), off), s(mouth_tl), total, bob_tl=s([(0, (0, 0))] + bob))
     for x0, t0 in ((4, 0.2), (53, 1.6), (8, 2.6)):
-        path = [(0, (0, 0))] + [(round(t0 + i * 0.18, 2), (i % 2, -i)) for i in range(9)]
-        body += sprite(NOTE, CC, x0, 18, [(t0, t0 + 1.6)], T, path)
-    return card("s", body, "Eli dancing and singing")
+        for i in range(loops):
+            a = t0 + i * T + off
+            path = [(0, (0, 0))] + [(round(a + j * 0.18, 2), (j % 2 * k, -j * k)) for j in range(9)]
+            body += sprite(NOTE, cell, x0 * k, 18 * k, [(a, a + 1.6)], total, path, n=k)
+    return body
+
+
+def card_sing():
+    return card("s", sing_body(), "Eli dancing and singing")
 
 
 def card_sleep():
@@ -413,6 +439,29 @@ def card_faces():
                "A few of Eli's faces: pixel, blocks, beads, LEDs, cat")
 
 
+# --- reel: the hero, then talking, then singing, one after the other in one loop --------------------------------
+def scene(body, off, dur, total):
+    """display (not visibility): the frames inside set their own visibility, which would beat a hidden parent."""
+    tl = [(0, "none"), (off, "inline"), (off + dur, "none")] if off else [(0, "inline"), (dur, "none")]
+    base, anim = discrete("display", tl, total)
+    return f'<g display="{base}">{anim}{body}</g>'
+
+
+def reel():
+    cols, cell = 128, 6
+    talk_t = talk_body()[1]
+    parts = [(12, lambda o, T: hero_body(o, T)), (talk_t, lambda o, T: talk_body(o, T, cols, cell)[0]),
+             (8, lambda o, T: sing_body(o, T, cols, cell, loops=2))]
+    total = round(sum(d for d, _ in parts), 3)
+    body, off = "", 0
+    for dur, make in parts:
+        body += scene(make(off, total), off, dur, total)
+        off = round(off + dur, 3)
+    w, h, pad = cols * cell, cols // 2 * cell, 26
+    dev = device("r", (960 - w - 2 * pad) / 2, 24, w, h, pad, 40, body, cell, glow=4, led=2.4)
+    return svg(960, 530, dev, "Eli, a green pixel face that talks, smiles, sings and dances")
+
+
 # --- buttons -------------------------------------------------------------------------------------------------
 ICONS = {  # 7x7 pixel glyphs: play, face, arrows, flag
     "start": ["#......", "###....", "#####..", "#######", "#####..", "###....", "#......"],
@@ -443,7 +492,7 @@ def main():
     files = {
         "hero.svg": hero(False), "hero-light.svg": hero(True),
         "card-talk.svg": card_talk(), "card-listen.svg": card_listen(), "card-sing.svg": card_sing(),
-        "card-sleep.svg": card_sleep(), "card-cat.svg": card_cat(), "card-faces.svg": card_faces(),
+        "card-sleep.svg": card_sleep(), "reel.svg": reel(), "card-cat.svg": card_cat(), "card-faces.svg": card_faces(),
     }
     for key, (en, fr) in BUTTONS.items():
         files[f"btn-{key}.svg"] = button(key, en, accent=key == "start")
